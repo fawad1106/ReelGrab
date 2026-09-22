@@ -9,7 +9,6 @@
   const signInBtn = $("#signInBtn");
   const authDialog = $("#authDialog");
   const closeAuthBtn = $("#closeAuthBtn");
-  const googleSignInBtn = $("#googleSignInBtn");
   const emailAuthForm = $("#emailAuthForm");
   const authEmail = $("#authEmail");
   const authPassword = $("#authPassword");
@@ -59,7 +58,7 @@
     const { data } = await supabaseClient.auth.getSession();
     if (data.session?.user) {
       signInBtn.textContent = "Signed in";
-      signInBtn.title = data.session.user.email || "Google account";
+      signInBtn.title = data.session.user.email || "Signed-in account";
     } else {
       signInBtn.textContent = "Sign in";
       signInBtn.title = "";
@@ -91,13 +90,20 @@
     authMessage.textContent = "";
     emailSignInBtn.disabled = true;
     emailSignUpBtn.disabled = true;
+
     try {
       const email = authEmail.value.trim();
       const password = authPassword.value;
       const result = mode === "signup"
-        ? await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
+        ? await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: window.location.origin }
+          })
         : await supabaseClient.auth.signInWithPassword({ email, password });
+
       if (result.error) throw result.error;
+
       if (mode === "signup" && !result.data.session) {
         authMessage.textContent = "Account created. Check your email to confirm your address.";
       } else {
@@ -119,27 +125,6 @@
 
   emailSignUpBtn.addEventListener("click", () => emailAuth("signup"));
 
-  googleSignInBtn.addEventListener("click", async () => {
-    if (!supabaseClient) return;
-
-    googleSignInBtn.disabled = true;
-    googleSignInBtn.textContent = "Redirecting…";
-    authMessage.textContent = "";
-
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin
-      }
-    });
-
-    if (error) {
-      authMessage.textContent = error.message;
-      googleSignInBtn.disabled = false;
-      googleSignInBtn.textContent = "Continue with Google";
-    }
-  });
-
   supabaseClient?.auth.onAuthStateChange(() => refreshAuthState());
   refreshAuthState();
 
@@ -158,7 +143,10 @@
 
     try {
       const headers = { "Content-Type": "application/json" };
-      const { data } = supabaseClient ? await supabaseClient.auth.getSession() : { data: { session: null } };
+      const { data } = supabaseClient
+        ? await supabaseClient.auth.getSession()
+        : { data: { session: null } };
+
       if (data.session?.access_token) {
         headers.Authorization = `Bearer ${data.session.access_token}`;
       }

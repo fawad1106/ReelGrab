@@ -10,6 +10,11 @@
   const authDialog = $("#authDialog");
   const closeAuthBtn = $("#closeAuthBtn");
   const googleSignInBtn = $("#googleSignInBtn");
+  const emailAuthForm = $("#emailAuthForm");
+  const authEmail = $("#authEmail");
+  const authPassword = $("#authPassword");
+  const emailSignUpBtn = $("#emailSignUpBtn");
+  const emailSignInBtn = $("#emailSignInBtn");
   const authMessage = $("#authMessage");
 
   const supabaseClient = window.supabase?.createClient
@@ -80,6 +85,39 @@
   });
 
   closeAuthBtn.addEventListener("click", () => authDialog.close());
+
+  async function emailAuth(mode) {
+    if (!supabaseClient) return;
+    authMessage.textContent = "";
+    emailSignInBtn.disabled = true;
+    emailSignUpBtn.disabled = true;
+    try {
+      const email = authEmail.value.trim();
+      const password = authPassword.value;
+      const result = mode === "signup"
+        ? await supabaseClient.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
+        : await supabaseClient.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+      if (mode === "signup" && !result.data.session) {
+        authMessage.textContent = "Account created. Check your email to confirm your address.";
+      } else {
+        authDialog.close();
+        await refreshAuthState();
+      }
+    } catch (error) {
+      authMessage.textContent = error.message || "Authentication failed.";
+    } finally {
+      emailSignInBtn.disabled = false;
+      emailSignUpBtn.disabled = false;
+    }
+  }
+
+  emailAuthForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    emailAuth("signin");
+  });
+
+  emailSignUpBtn.addEventListener("click", () => emailAuth("signup"));
 
   googleSignInBtn.addEventListener("click", async () => {
     if (!supabaseClient) return;

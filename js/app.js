@@ -6,27 +6,19 @@
   const urlInput = $("#videoUrl");
   const downloadBtn = $("#downloadBtn");
   const message = $("#message");
+  const signInBtn = $("#signInBtn");
+  const authDialog = $("#authDialog");
+  const closeAuthBtn = $("#closeAuthBtn");
+  const googleSignInBtn = $("#googleSignInBtn");
+  const authMessage = $("#authMessage");
+
+  const supabaseClient = window.supabase?.createClient
+    ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+    : null;
 
   function setMessage(text, type = "") {
     message.textContent = text;
     message.className = `message ${type}`;
-  }
-
-  function showDownloadLink(url) {
-    message.innerHTML = "";
-    message.className = "message success";
-
-    const text = document.createElement("span");
-    text.textContent = "Your MP4 is ready. ";
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = "Open / Download MP4";
-    link.className = "download-link";
-
-    message.append(text, link);
   }
 
   function safeUrl(value) {
@@ -37,6 +29,81 @@
       return null;
     }
   }
+
+  async function downloadMp4(fileUrl) {
+    const response = await fetch(fileUrl);
+    if (!response.ok) throw new Error(`Could not fetch the MP4 (HTTP ${response.status}).`);
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = `reelgrab-${Date.now()}.mp4`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  }
+
+  async function refreshAuthState() {
+    if (!supabaseClient) {
+      signInBtn.textContent = "Sign in";
+      return;
+    }
+
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session?.user) {
+      signInBtn.textContent = "Signed in";
+      signInBtn.title = data.session.user.email || "Google account";
+    } else {
+      signInBtn.textContent = "Sign in";
+      signInBtn.title = "";
+    }
+  }
+
+  signInBtn.addEventListener("click", async () => {
+    if (!supabaseClient) {
+      authMessage.textContent = "Sign-in service is unavailable.";
+      authDialog.showModal();
+      return;
+    }
+
+    const { data } = await supabaseClient.auth.getSession();
+    if (data.session?.user) {
+      await supabaseClient.auth.signOut();
+      await refreshAuthState();
+      return;
+    }
+
+    authMessage.textContent = "";
+    authDialog.showModal();
+  });
+
+  closeAuthBtn.addEventListener("click", () => authDialog.close());
+
+  googleSignInBtn.addEventListener("click", async () => {
+    if (!supabaseClient) return;
+
+    googleSignInBtn.disabled = true;
+    googleSignInBtn.textContent = "Redirecting…";
+    authMessage.textContent = "";
+
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+
+    if (error) {
+      authMessage.textContent = error.message;
+      googleSignInBtn.disabled = false;
+      googleSignInBtn.textContent = "Continue with Google";
+    }
+  });
+
+  supabaseClient?.auth.onAuthStateChange(() => refreshAuthState());
+  refreshAuthState();
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -52,11 +119,15 @@
     downloadBtn.textContent = "Processing…";
 
     try {
+      const headers = { "Content-Type": "application/json" };
+      const { data } = supabaseClient ? await supabaseClient.auth.getSession() : { data: { session: null } };
+      if (data.session?.access_token) {
+        headers.Authorization = `Bearer ${data.session.access_token}`;
+      }
+
       const response = await fetch(window.DOWNLOAD_API_URL, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers,
         body: JSON.stringify({ url: reelUrl })
       });
 
@@ -70,11 +141,12 @@
         );
       }
 
-      if (result.file_url) {
-        showDownloadLink(result.file_url);
-      } else {
-        setMessage("Processing finished, but no MP4 link was returned.", "error");
+      if (!result.file_url) {
+        throw new Error("Processing finished, but no MP4 was returned.");
       }
+
+      setMessage("Your MP4 is ready. Starting download…", "success");
+      await downloadMp4(result.file_url);
     } catch (error) {
       console.error("ReelGrab download:", error);
       setMessage(error.message || "Something went wrong.", "error");

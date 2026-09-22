@@ -15,6 +15,10 @@
   const emailSignUpBtn = $("#emailSignUpBtn");
   const emailSignInBtn = $("#emailSignInBtn");
   const authMessage = $("#authMessage");
+  const authTitle = $("#authTitle");
+  const authSubtitle = $("#authSubtitle");
+
+  let authMode = "signin";
 
   const supabaseClient = window.supabase?.createClient
     ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
@@ -67,6 +71,23 @@
     }
   }
 
+  function openAuth(mode = "signin") {
+    authMode = mode;
+    const signingUp = mode === "signup";
+
+    authTitle.textContent = signingUp ? "Create your ReelGrab account" : "Sign in to ReelGrab";
+    authSubtitle.textContent = signingUp
+      ? "Enter an email address and create a ReelGrab password."
+      : "Use your email address and ReelGrab password.";
+    emailSignInBtn.textContent = signingUp ? "Create account" : "Sign in";
+    emailSignUpBtn.textContent = signingUp ? "Back to sign in" : "Create account";
+    authEmail.autocomplete = signingUp ? "email" : "email";
+    authPassword.autocomplete = signingUp ? "new-password" : "current-password";
+    authMessage.textContent = "";
+    authDialog.showModal();
+    authEmail.focus();
+  }
+
   signInBtn.addEventListener("click", async () => {
     if (!supabaseClient) {
       authMessage.textContent = "Sign-in service is unavailable.";
@@ -81,8 +102,7 @@
       return;
     }
 
-    authMessage.textContent = "";
-    authDialog.showModal();
+    openAuth("signin");
   });
 
   closeAuthBtn.addEventListener("click", () => authDialog.close());
@@ -96,6 +116,11 @@
     try {
       const email = authEmail.value.trim();
       const password = authPassword.value;
+
+      if (!email || !password) {
+        throw new Error("Enter your email and password.");
+      }
+
       const result = mode === "signup"
         ? await supabaseClient.auth.signUp({
             email,
@@ -122,10 +147,12 @@
 
   emailAuthForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    emailAuth("signin");
+    emailAuth(authMode);
   });
 
-  emailSignUpBtn.addEventListener("click", () => emailAuth("signup"));
+  emailSignUpBtn.addEventListener("click", () => {
+    openAuth(authMode === "signup" ? "signin" : "signup");
+  });
 
   supabaseClient?.auth.onAuthStateChange(() => refreshAuthState());
   refreshAuthState();
@@ -143,15 +170,15 @@
     let session;
     try {
       session = await getSession();
-    } catch (error) {
+    } catch {
       setMessage("Could not check your sign-in status. Please try again.", "error");
       return;
     }
 
     if (!session?.access_token) {
       setMessage("Sign in with your email before downloading.", "error");
+      openAuth("signin");
       authMessage.textContent = "Sign in with your email to use ReelGrab.";
-      authDialog.showModal();
       return;
     }
 

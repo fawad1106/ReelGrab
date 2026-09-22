@@ -18,6 +18,21 @@ function setMessage(text, type = "") {
   message.className = `message ${type}`;
 }
 
+function showDownloadLink(url) {
+  if (!url) return;
+  message.innerHTML = "";
+  message.className = "message success";
+  const text = document.createElement("span");
+  text.textContent = "Your MP4 is ready. ";
+  const link = document.createElement("a");
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  link.textContent = "Open / Download MP4";
+  link.className = "download-link";
+  message.append(text, link);
+}
+
 function formatDate(value) {
   return new Date(value).toLocaleString();
 }
@@ -26,7 +41,9 @@ function safeUrl(value) {
   try {
     const url = new URL(value);
     return /^https?:$/.test(url.protocol) ? url.toString() : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function loadUser() {
@@ -63,16 +80,25 @@ async function loadHistory(user) {
       <h3>${escapeHtml(item.file_name || "Untitled video")}</h3>
       <p>${escapeHtml(item.reel_url)}</p>
       <p>${formatDate(item.created_at)}</p>
-      <span class="status ${item.status}">${escapeHtml(item.status)}</span>
+      <span class="status ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span>
       ${item.file_url ? `<a class="download-link" href="${escapeAttr(item.file_url)}" target="_blank" rel="noopener">Open MP4</a>` : ""}
     </article>
   `).join("");
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c]));
+  return String(value).replace(/[&<>'"]/g, c => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    "\"": "&quot;"
+  }[c]));
 }
-function escapeAttr(value) { return escapeHtml(value); }
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -101,23 +127,32 @@ form.addEventListener("submit", async (event) => {
 
   try {
     const session = (await supabase.auth.getSession()).data.session;
+    if (!session?.access_token) {
+      throw new Error("Your session expired. Please sign in again.");
+    }
+
     const response = await fetch(window.DOWNLOAD_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${session?.access_token || ""}`
+        "Authorization": `Bearer ${session.access_token}`
       },
       body: JSON.stringify({ url: reelUrl })
     });
 
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.detail || result.error || "Download service failed.");
+    if (!response.ok) {
+      throw new Error(result.detail || result.error || `Download service failed (HTTP ${response.status}).`);
+    }
 
-    setMessage("Your MP4 is ready.", "success");
-    urlInput.value = "";
     await loadHistory(user);
 
-    if (result.file_url) window.open(result.file_url, "_blank", "noopener");
+    if (result.file_url) {
+      showDownloadLink(result.file_url);
+      // Keep the pasted URL visible so the user knows which request succeeded.
+    } else {
+      setMessage("Processing finished, but no MP4 link was returned.", "error");
+    }
   } catch (error) {
     setMessage(error.message || "Something went wrong.", "error");
   } finally {
@@ -128,6 +163,7 @@ form.addEventListener("submit", async (event) => {
 
 loginBtn.addEventListener("click", () => authDialog.showModal());
 $("#closeAuth").addEventListener("click", () => authDialog.close());
+
 $("#refreshBtn").addEventListener("click", async () => {
   const { data: { user } } = await supabase.auth.getUser();
   await loadHistory(user);
@@ -146,7 +182,9 @@ authForm.addEventListener("submit", async (event) => {
     email,
     options: { emailRedirectTo: window.location.origin }
   });
-  authMessage.textContent = error ? error.message : "Check your email for the sign-in link.";
+  authMessage.textContent = error
+    ? error.message
+    : "Check your email for the sign-in link.";
 });
 
 supabase.auth.onAuthStateChange(() => loadUser());

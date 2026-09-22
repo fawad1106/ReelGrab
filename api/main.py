@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 import subprocess
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -177,7 +178,7 @@ def download(body: DownloadRequest, authorization: str | None = Header(default=N
                 "status": "completed",
                 "file_name": f"{safe_id}.mp4",
                 "file_url": signed_url,
-                "completed_at": "now()",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             })
 
             return {

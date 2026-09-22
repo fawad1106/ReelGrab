@@ -2,6 +2,7 @@ import os
 import re
 import tempfile
 import subprocess
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,6 +17,7 @@ SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
 SUPABASE_SERVICE_ROLE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE_MB", "100")) * 1024 * 1024
 SIGNED_URL_SECONDS = int(os.getenv("SIGNED_URL_SECONDS", "604800"))
+REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "true").lower() != "false"
 
 app = FastAPI(title="ReelGrab MP4 API")
 app.add_middleware(
@@ -130,18 +132,20 @@ def health():
 @app.post("/api/download")
 def download(body: DownloadRequest, authorization: str | None = Header(default=None)):
     token = authorization.removeprefix("Bearer ").strip() if authorization else ""
-    user = get_user(token)
+    user = get_user(token) if REQUIRE_AUTH else None
     url = str(body.url)
 
     if not is_supported_instagram_url(url):
         raise HTTPException(status_code=400, detail="Only Instagram Reel/Post URLs are supported.")
 
-    record = db_insert({
-        "user_id": user["id"],
-        "reel_url": url,
-        "status": "processing",
-    })
-    download_id = record["id"]
+    download_id = None
+    if REQUIRE_AUTH:
+        record = db_insert({
+            "user_id": user["id"],
+            "reel_url": url,
+            "status": "processing",
+        })
+        download_id = record["id"]
 
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -169,17 +173,18 @@ def download(body: DownloadRequest, authorization: str | None = Header(default=N
             if media.stat().st_size > MAX_FILE_SIZE:
                 raise RuntimeError("The resulting MP4 is larger than the configured limit.")
 
-            safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", str(download_id))
-            storage_path = f"{user['id']}/{safe_id}.mp4"
+            safe_id = re.sub(r"[^a-zA-Z0-9_-]", "", str(download_id or uuid.uuid4()))
+            storage_path = f"{user['id']}/{safe_id}.mp4" if REQUIRE_AUTH else f"test/{safe_id}.mp4"
             upload_file(media, storage_path)
             signed_url = create_signed_url(storage_path)
 
-            db_update(download_id, {
-                "status": "completed",
-                "file_name": f"{safe_id}.mp4",
-                "file_url": signed_url,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            })
+            if REQUIRE_AUTH:
+                db_update(download_id, {
+                    "status": "completed",
+                    "file_name": f"{safe_id}.mp4",
+                    "file_url": signed_url,
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                })
 
             return {
                 "ok": True,
@@ -194,8 +199,9 @@ def download(body: DownloadRequest, authorization: str | None = Header(default=N
     except Exception as exc:
         error = str(exc)[:1000]
 
-    try:
-        db_update(download_id, {"status": "failed", "error_message": error})
-    except Exception:
-        pass
+    if REQUIRE_AUTH and download_id:
+        try:
+            db_update(download_id, {"status": "failed", "error_message": error})
+        except Exception:
+            pass
     raise HTTPException(status_code=422, detail=error)

@@ -1,8 +1,6 @@
-// Create a Supabase project and paste the PUBLIC values here.
-// Never put your Supabase service_role key in frontend code.
-window.SUPABASE_URL = "YOUR_SUPABASE_PROJECT_URL";
-window.SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+// Public Supabase configuration. Never put the service_role key in frontend code.
+window.SUPABASE_URL = "https://jsjiysgwymeuugjipyil.supabase.co";
+window.SUPABASE_ANON_KEY = "sb_publishable_NGo65OXNEWzmJqSBy9KGuw_kwFQMDAqS";
 
-// Your server-side downloader endpoint.
-// Example: https://your-api.example.com/api/download
-window.DOWNLOAD_API_URL = "https://YOUR-API-DOMAIN/api/download";
+// Server-side downloader endpoint.
+window.DOWNLOAD_API_URL = "https://reelgrab-api-79yl.onrender.com/api/download";

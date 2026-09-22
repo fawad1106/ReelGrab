@@ -49,16 +49,18 @@
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
-  async function refreshAuthState() {
-    if (!supabaseClient) {
-      signInBtn.textContent = "Sign in";
-      return;
-    }
+  async function getSession() {
+    if (!supabaseClient) return null;
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    return data.session || null;
+  }
 
-    const { data } = await supabaseClient.auth.getSession();
-    if (data.session?.user) {
+  async function refreshAuthState() {
+    const session = await getSession();
+    if (session?.user) {
       signInBtn.textContent = "Signed in";
-      signInBtn.title = data.session.user.email || "Signed-in account";
+      signInBtn.title = session.user.email || "Signed-in account";
     } else {
       signInBtn.textContent = "Sign in";
       signInBtn.title = "";
@@ -72,8 +74,8 @@
       return;
     }
 
-    const { data } = await supabaseClient.auth.getSession();
-    if (data.session?.user) {
+    const session = await getSession();
+    if (session?.user) {
       await supabaseClient.auth.signOut();
       await refreshAuthState();
       return;
@@ -105,7 +107,7 @@
       if (result.error) throw result.error;
 
       if (mode === "signup" && !result.data.session) {
-        authMessage.textContent = "Account created. Check your email to confirm your address.";
+        authMessage.textContent = "Account created. Check your email to confirm your address before downloading.";
       } else {
         authDialog.close();
         await refreshAuthState();
@@ -138,22 +140,31 @@
       return;
     }
 
+    let session;
+    try {
+      session = await getSession();
+    } catch (error) {
+      setMessage("Could not check your sign-in status. Please try again.", "error");
+      return;
+    }
+
+    if (!session?.access_token) {
+      setMessage("Sign in with your email before downloading.", "error");
+      authMessage.textContent = "Sign in with your email to use ReelGrab.";
+      authDialog.showModal();
+      return;
+    }
+
     downloadBtn.disabled = true;
     downloadBtn.textContent = "Processing…";
 
     try {
-      const headers = { "Content-Type": "application/json" };
-      const { data } = supabaseClient
-        ? await supabaseClient.auth.getSession()
-        : { data: { session: null } };
-
-      if (data.session?.access_token) {
-        headers.Authorization = `Bearer ${data.session.access_token}`;
-      }
-
       const response = await fetch(window.DOWNLOAD_API_URL, {
         method: "POST",
-        headers,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
         body: JSON.stringify({ url: reelUrl })
       });
 

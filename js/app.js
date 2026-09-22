@@ -9,24 +9,29 @@
   const signInBtn = $("#signInBtn");
   const authDialog = $("#authDialog");
   const closeAuthBtn = $("#closeAuthBtn");
-  const emailAuthForm = $("#emailAuthForm");
+  const authForm = $("#authForm");
+  const authUsername = $("#authUsername");
   const authEmail = $("#authEmail");
+  const authEmailLabel = $("#authEmailLabel");
   const authPassword = $("#authPassword");
-  const emailSignUpBtn = $("#emailSignUpBtn");
-  const emailSignInBtn = $("#emailSignInBtn");
+  const authSwitch = $("#authSwitch");
+  const authSubmit = $("#authSubmit");
   const authMessage = $("#authMessage");
   const authTitle = $("#authTitle");
   const authSubtitle = $("#authSubtitle");
 
-  let authMode = "signin";
-
-  const supabaseClient = window.supabase?.createClient
-    ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-    : null;
+  const API_BASE = window.DOWNLOAD_API_URL.replace(/\/api\/download\/?$/, "");
+  let registerMode = false;
+  let currentUser = null;
 
   function setMessage(text, type = "") {
     message.textContent = text;
     message.className = `message ${type}`;
+  }
+
+  function setAuthMessage(text, type = "") {
+    authMessage.textContent = text;
+    authMessage.className = `message ${type}`;
   }
 
   function safeUrl(value) {
@@ -36,6 +41,21 @@
     } catch {
       return null;
     }
+  }
+
+  async function api(path, options = {}) {
+    const response = await fetch(`${API_BASE}${path}`, {
+      credentials: "include",
+      ...options,
+      headers: {
+        ...(options.headers || {})
+      }
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.detail || result.error || `Request failed (HTTP ${response.status}).`);
+    }
+    return result;
   }
 
   async function downloadMp4(fileUrl) {
@@ -53,109 +73,88 @@
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
-  async function getSession() {
-    if (!supabaseClient) return null;
-    const { data, error } = await supabaseClient.auth.getSession();
-    if (error) throw error;
-    return data.session || null;
+  function openAuth(mode = "login") {
+    registerMode = mode === "register";
+    authTitle.textContent = registerMode ? "Create your ReelGrab account" : "Welcome back";
+    authSubtitle.textContent = registerMode
+      ? "Set up your free ReelGrab account."
+      : "Log in to continue to ReelGrab.";
+    authEmail.hidden = !registerMode;
+    authEmailLabel.hidden = !registerMode;
+    authEmail.required = registerMode;
+    authPassword.autocomplete = registerMode ? "new-password" : "current-password";
+    authSubmit.textContent = registerMode ? "Register" : "Log in";
+    authSwitch.textContent = registerMode
+      ? "Already have an account? Log in"
+      : "Need an account? Register";
+    setAuthMessage("");
+    authDialog.showModal();
+    authUsername.focus();
   }
 
   async function refreshAuthState() {
-    const session = await getSession();
-    if (session?.user) {
-      signInBtn.textContent = "Signed in";
-      signInBtn.title = session.user.email || "Signed-in account";
-    } else {
-      signInBtn.textContent = "Sign in";
+    try {
+      currentUser = await api("/api/auth/me");
+      signInBtn.textContent = "Log out";
+      signInBtn.title = currentUser.username || "Signed-in account";
+    } catch {
+      currentUser = null;
+      signInBtn.textContent = "Log in";
       signInBtn.title = "";
     }
   }
 
-  function openAuth(mode = "signin") {
-    authMode = mode;
-    const signingUp = mode === "signup";
-
-    authTitle.textContent = signingUp ? "Create your ReelGrab account" : "Sign in to ReelGrab";
-    authSubtitle.textContent = signingUp
-      ? "Enter an email address and create a ReelGrab password."
-      : "Use your email address and ReelGrab password.";
-    emailSignInBtn.textContent = signingUp ? "Create account" : "Sign in";
-    emailSignUpBtn.textContent = signingUp ? "Back to sign in" : "Create account";
-    authEmail.autocomplete = signingUp ? "email" : "email";
-    authPassword.autocomplete = signingUp ? "new-password" : "current-password";
-    authMessage.textContent = "";
-    authDialog.showModal();
-    authEmail.focus();
-  }
-
   signInBtn.addEventListener("click", async () => {
-    if (!supabaseClient) {
-      authMessage.textContent = "Sign-in service is unavailable.";
-      authDialog.showModal();
+    if (currentUser) {
+      try {
+        await api("/api/auth/logout", { method: "POST" });
+      } finally {
+        currentUser = null;
+        signInBtn.textContent = "Log in";
+        signInBtn.title = "";
+      }
       return;
     }
-
-    const session = await getSession();
-    if (session?.user) {
-      await supabaseClient.auth.signOut();
-      await refreshAuthState();
-      return;
-    }
-
-    openAuth("signin");
+    openAuth("login");
   });
 
   closeAuthBtn.addEventListener("click", () => authDialog.close());
 
-  async function emailAuth(mode) {
-    if (!supabaseClient) return;
-    authMessage.textContent = "";
-    emailSignInBtn.disabled = true;
-    emailSignUpBtn.disabled = true;
+  authSwitch.addEventListener("click", () => {
+    openAuth(registerMode ? "login" : "register");
+  });
+
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    setAuthMessage("");
+    authSubmit.disabled = true;
+    authSubmit.textContent = registerMode ? "Creating…" : "Signing in…";
 
     try {
-      const email = authEmail.value.trim();
-      const password = authPassword.value;
+      const payload = {
+        username: authUsername.value.trim(),
+        password: authPassword.value
+      };
+      if (registerMode) payload.email = authEmail.value.trim();
 
-      if (!email || !password) {
-        throw new Error("Enter your email and password.");
-      }
+      currentUser = await api(registerMode ? "/api/auth/register" : "/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
 
-      const result = mode === "signup"
-        ? await supabaseClient.auth.signUp({
-            email,
-            password,
-            options: { emailRedirectTo: window.location.origin }
-          })
-        : await supabaseClient.auth.signInWithPassword({ email, password });
-
-      if (result.error) throw result.error;
-
-      if (mode === "signup" && !result.data.session) {
-        authMessage.textContent = "Account created. Check your email to confirm your address before downloading.";
-      } else {
-        authDialog.close();
-        await refreshAuthState();
-      }
+      authDialog.close();
+      signInBtn.textContent = "Log out";
+      signInBtn.title = currentUser.username;
+      setMessage(registerMode ? "Account created. You are now signed in." : "Signed in successfully.", "success");
+      authForm.reset();
     } catch (error) {
-      authMessage.textContent = error.message || "Authentication failed.";
+      setAuthMessage(error.message || "Authentication failed.", "error");
     } finally {
-      emailSignInBtn.disabled = false;
-      emailSignUpBtn.disabled = false;
+      authSubmit.disabled = false;
+      authSubmit.textContent = registerMode ? "Register" : "Log in";
     }
-  }
-
-  emailAuthForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    emailAuth(authMode);
   });
-
-  emailSignUpBtn.addEventListener("click", () => {
-    openAuth(authMode === "signup" ? "signin" : "signup");
-  });
-
-  supabaseClient?.auth.onAuthStateChange(() => refreshAuthState());
-  refreshAuthState();
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -167,18 +166,10 @@
       return;
     }
 
-    let session;
-    try {
-      session = await getSession();
-    } catch {
-      setMessage("Could not check your sign-in status. Please try again.", "error");
-      return;
-    }
-
-    if (!session?.access_token) {
-      setMessage("Sign in with your email before downloading.", "error");
-      openAuth("signin");
-      authMessage.textContent = "Sign in with your email to use ReelGrab.";
+    if (!currentUser) {
+      setMessage("Log in before downloading.", "error");
+      openAuth("login");
+      setAuthMessage("Log in with your username and password to use ReelGrab.");
       return;
     }
 
@@ -186,24 +177,11 @@
     downloadBtn.textContent = "Processing…";
 
     try {
-      const response = await fetch(window.DOWNLOAD_API_URL, {
+      const result = await api("/api/download", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: reelUrl })
       });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(
-          result.detail ||
-          result.error ||
-          `Download service failed (HTTP ${response.status}).`
-        );
-      }
 
       if (!result.file_url) {
         throw new Error("Processing finished, but no MP4 was returned.");
@@ -212,6 +190,11 @@
       setMessage("Your MP4 is ready. Starting download…", "success");
       await downloadMp4(result.file_url);
     } catch (error) {
+      if (/please log in|invalid or expired/i.test(error.message || "")) {
+        currentUser = null;
+        await refreshAuthState();
+        openAuth("login");
+      }
       console.error("ReelGrab download:", error);
       setMessage(error.message || "Something went wrong.", "error");
     } finally {
@@ -219,4 +202,6 @@
       downloadBtn.textContent = "Download MP4";
     }
   });
+
+  refreshAuthState();
 })();

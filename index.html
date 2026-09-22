@@ -11,8 +11,8 @@
   <header class="topbar">
     <a class="brand" href=".">Reel<span>Grab</span></a>
     <div class="account">
-      <button id="loginBtn" class="ghost-btn">Sign in</button>
-      <button id="logoutBtn" class="ghost-btn hidden">Sign out</button>
+      <button id="loginBtn" type="button" class="ghost-btn">Sign in</button>
+      <button id="logoutBtn" type="button" class="ghost-btn hidden">Sign out</button>
     </div>
   </header>
 
@@ -29,7 +29,7 @@
           <button type="submit" id="downloadBtn" class="primary-btn">Download MP4</button>
         </div>
         <p class="hint">Only download content you own or have permission to save.</p>
-        <p id="message" class="message" role="status"></p>
+        <p id="message" class="message" role="status" aria-live="polite"></p>
       </form>
     </section>
 
@@ -38,7 +38,7 @@
         <h2>Download history</h2>
         <p>Saved to your Supabase account.</p>
       </div>
-      <button id="refreshBtn" class="ghost-btn">Refresh</button>
+      <button id="refreshBtn" type="button" class="ghost-btn">Refresh</button>
     </section>
 
     <section id="history" class="history-grid">
@@ -46,17 +46,18 @@
     </section>
   </main>
 
-  <dialog id="authDialog">
+  <dialog id="authDialog" aria-labelledby="authTitle">
     <form method="dialog" id="authForm" class="auth-card">
       <button type="button" id="closeAuth" class="close-btn" aria-label="Close">×</button>
-      <h2>Sign in</h2>
+      <h2 id="authTitle">Sign in</h2>
       <p>Use your email to access your private history.</p>
-      <input id="email" type="email" placeholder="you@example.com" required />
+      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required />
       <button class="primary-btn" type="submit">Send magic link</button>
-      <p id="authMessage" class="message"></p>
+      <p id="authMessage" class="message" role="status" aria-live="polite"></p>
     </form>
   </dialog>
 
+  <!-- Supabase client. app.js also has a fallback loader so UI controls still work if a CDN is temporarily unavailable. -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>

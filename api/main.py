@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
-from fastapi import Cookie, FastAPI, HTTPException, Header, Response
+from fastapi import Cookie, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl
 
@@ -83,8 +83,13 @@ def validate_credentials(x: Credentials, require_email=False):
         raise HTTPException(400, "Username must be 3–40 characters using letters, numbers, dot, underscore or hyphen.")
     if len(x.password) < 8 or len(x.password) > 128:
         raise HTTPException(400, "Password must be 8–128 characters.")
-    if require_email and email and len(email) > 255:
-        raise HTTPException(400, "Email address is too long.")
+    if require_email:
+        if not email:
+            raise HTTPException(400, "Email is required when creating an account.")
+        if len(email) > 255:
+            raise HTTPException(400, "Email address is too long.")
+        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+            raise HTTPException(400, "Enter a valid email address.")
     return username, email
 
 
@@ -226,7 +231,7 @@ def health():
 
 @app.post("/api/auth/register")
 def register(x: Credentials, response: Response):
-    username, email = validate_credentials(x, require_email=False)
+    username, email = validate_credentials(x, require_email=True)
     existing = db_get("app_users", {"select": "id", "username": f"eq.{username}", "limit": "1"})
     if existing:
         raise HTTPException(409, "Username already exists.")

@@ -34,9 +34,11 @@ app = FastAPI(title="ReelGrab MP4 API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://[a-z0-9-]+\.onrender\.com",
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["*"],
+    expose_headers=["Content-Type"],
 )
 
 class Credentials(BaseModel):

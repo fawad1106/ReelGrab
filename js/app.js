@@ -6,45 +6,16 @@
   const urlInput = $("#videoUrl");
   const downloadBtn = $("#downloadBtn");
   const message = $("#message");
-  const signInBtn = $("#signInBtn");
-  const adminBtn = $("#adminBtn");
-  const adminDialog = $("#adminDialog");
-  const closeAdminBtn = $("#closeAdminBtn");
-  const adminStats = $("#adminStats");
-  const adminUsers = $("#adminUsers");
-  const adminDownloads = $("#adminDownloads");
-  const adminMessage = $("#adminMessage");
-  const adminPasswordForm = $("#adminPasswordForm");
-  const adminNewPassword = $("#adminNewPassword");
-  const adminPasswordBtn = $("#adminPasswordBtn");
-  const adminPasswordMessage = $("#adminPasswordMessage");
-  const authDialog = $("#authDialog");
-  const closeAuthBtn = $("#closeAuthBtn");
-  const authForm = $("#authForm");
-  const authUsername = $("#authUsername");
-  const authEmail = $("#authEmail");
-  const authEmailLabel = $("#authEmailLabel");
-  const authPassword = $("#authPassword");
-  const authSwitch = $("#authSwitch");
-  const authSubmit = $("#authSubmit");
-  const authMessage = $("#authMessage");
-  const authTitle = $("#authTitle");
-  const authSubtitle = $("#authSubtitle");
 
-  const configuredApiUrl = typeof window.DOWNLOAD_API_URL === "string" ? window.DOWNLOAD_API_URL.trim() : "";
-  const API_BASE = (configuredApiUrl || "https://reelgrab-api-79yl.onrender.com/api/download").replace(/\/api\/download\/?$/, "");
-  let registerMode = false;
-  let currentUser = null;
-  let authReady = null;
+  const configuredApiUrl = typeof window.DOWNLOAD_API_URL === "string"
+    ? window.DOWNLOAD_API_URL.trim()
+    : "";
+  const API_BASE = (configuredApiUrl || "https://reelgrab-api-79yl.onrender.com/api/download")
+    .replace(/\/api\/download\/?$/, "");
 
   function setMessage(text, type = "") {
     message.textContent = text;
     message.className = `message ${type}`;
-  }
-
-  function setAuthMessage(text, type = "") {
-    authMessage.textContent = text;
-    authMessage.className = `message ${type}`;
   }
 
   function safeUrl(value) {
@@ -60,7 +31,6 @@
     let response;
     try {
       response = await fetch(`${API_BASE}${path}`, {
-        credentials: "include",
         ...options,
         headers: {
           ...(options.headers || {})
@@ -68,9 +38,7 @@
       });
     } catch (error) {
       console.error("ReelGrab API network error:", error);
-      throw new Error(
-        "Could not connect to ReelGrab. Please refresh the page and try again. If it keeps happening, the API connection is unavailable."
-      );
+      throw new Error("Could not connect to ReelGrab. Please refresh and try again.");
     }
 
     const result = await response.json().catch(() => ({}));
@@ -88,7 +56,10 @@
       console.error("ReelGrab MP4 network error:", error);
       throw new Error("The MP4 could not be reached from your browser.");
     }
-    if (!response.ok) throw new Error(`Could not fetch the MP4 (HTTP ${response.status}).`);
+
+    if (!response.ok) {
+      throw new Error(`Could not fetch the MP4 (HTTP ${response.status}).`);
+    }
 
     const blob = await response.blob();
     const objectUrl = URL.createObjectURL(blob);
@@ -101,228 +72,6 @@
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
-  function openAuth(mode = "login") {
-    registerMode = mode === "register";
-    authTitle.textContent = registerMode ? "Create your ReelGrab account" : "Welcome back";
-    authSubtitle.textContent = registerMode
-      ? "Set up your free ReelGrab account."
-      : "Log in to continue to ReelGrab.";
-    authEmail.hidden = !registerMode;
-    authEmailLabel.hidden = !registerMode;
-    authEmail.required = registerMode;
-    authPassword.autocomplete = registerMode ? "new-password" : "current-password";
-    authSubmit.textContent = registerMode ? "Register" : "Log in";
-    authSwitch.textContent = registerMode
-      ? "Already have an account? Log in"
-      : "Need an account? Register";
-    setAuthMessage("");
-    if (typeof authDialog.showModal === "function") {
-      if (!authDialog.open) authDialog.showModal();
-    } else {
-      authDialog.setAttribute("open", "");
-    }
-    authUsername.focus();
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-    }[char]));
-  }
-
-  function formatDate(value) {
-    if (!value) return "—";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
-  }
-
-  function updateAccountUi() {
-    if (currentUser) {
-      signInBtn.textContent = currentUser.username || "Account";
-      adminBtn.classList.toggle("hidden", (currentUser.username || "").trim().toLowerCase() !== "fawad malik");
-      signInBtn.title = "Signed in. Click to log out.";
-      signInBtn.setAttribute("aria-label", `Signed in as ${currentUser.username || "your account"}`);
-      return;
-    }
-    signInBtn.textContent = "Log in";
-    signInBtn.title = "";
-    adminBtn.classList.add("hidden");
-    signInBtn.setAttribute("aria-label", "Log in");
-  }
-
-  async function refreshAuthState() {
-    try {
-      currentUser = await api("/api/auth/me");
-    } catch {
-      currentUser = null;
-    } finally {
-      updateAccountUi();
-    }
-    return currentUser;
-  }
-
-  authReady = refreshAuthState();
-
-
-  async function loadAdminDashboard() {
-    adminMessage.textContent = "Loading dashboard…";
-    adminStats.innerHTML = "";
-    adminUsers.innerHTML = "";
-    adminDownloads.innerHTML = "";
-
-    try {
-      const data = await api("/api/admin/dashboard");
-      const stats = data.stats || {};
-      adminStats.innerHTML = [
-        ["Users", stats.total_users],
-        ["Downloads", stats.total_downloads],
-        ["Completed", stats.completed_downloads],
-        ["Failed", stats.failed_downloads],
-        ["Processing", stats.processing_downloads]
-      ].map(([label, value]) => `
-        <button class="admin-stat admin-stat-button" type="button" data-admin-target="${label === "Users" ? "adminUsers" : label === "Downloads" ? "adminDownloads" : ""}" ${["Users","Downloads"].includes(label) ? "" : "disabled"}><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></button>
-      `).join("");
-
-      adminUsers.innerHTML = data.users?.length
-        ? `<table><thead><tr><th>Username</th><th>Email</th><th>Joined</th></tr></thead><tbody>${
-            data.users.map(user => `<tr><td>${escapeHtml(user.username)}</td><td>${escapeHtml(user.email || "—")}</td><td>${escapeHtml(formatDate(user.created_at))}</td></tr>`).join("")
-          }</tbody></table>`
-        : '<div class="empty-state">No users yet.</div>';
-
-      adminDownloads.innerHTML = data.downloads?.length
-        ? `<table><thead><tr><th>User</th><th>Instagram link</th><th>Status</th><th>File</th><th>Created</th><th>Completed</th><th>Error</th></tr></thead><tbody>${
-            data.downloads.map(item => {
-              const user = item.app_users || {};
-              return `<tr>
-                <td>${escapeHtml(user.username || item.user_id || "—")}</td>
-                <td class="url-cell"><a href="${escapeHtml(item.reel_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.reel_url)}</a></td>
-                <td><span class="status ${escapeHtml(item.status || "")}">${escapeHtml(item.status || "—")}</span></td>
-                <td>${escapeHtml(item.file_name || "—")}</td>
-                <td>${escapeHtml(formatDate(item.created_at))}</td>
-                <td>${escapeHtml(formatDate(item.completed_at))}</td>
-                <td>${escapeHtml(item.error_message || "—")}</td>
-              </tr>`;
-            }).join("")
-          }</tbody></table>`
-        : '<div class="empty-state">No downloads recorded yet.</div>';
-
-      document.querySelectorAll(".section-toggle").forEach((button) => {
-        button.onclick = () => {
-          const target = document.getElementById(button.dataset.target);
-          if (!target) return;
-          target.hidden = !target.hidden;
-          button.classList.toggle("collapsed", target.hidden);
-          button.querySelector(".section-toggle-icon").textContent = target.hidden ? "›" : "⌄";
-        };
-      });
-
-      document.querySelectorAll(".admin-stat-button:not([disabled])").forEach((button) => {
-        button.onclick = () => {
-          const target = document.getElementById(button.dataset.adminTarget);
-          if (!target) return;
-          target.hidden = false;
-          target.closest(".admin-section")?.querySelector(".section-toggle")?.classList.remove("collapsed");
-          target.closest(".admin-section")?.querySelector(".section-toggle-icon").textContent = "⌄";
-          target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        };
-      });
-
-      adminMessage.textContent = `Showing ${data.downloads?.length || 0} recent download records.`;
-    } catch (error) {
-      adminMessage.textContent = error.message || "Could not load the admin dashboard.";
-      adminMessage.className = "message error";
-    }
-  }
-
-  adminBtn.addEventListener("click", async () => {
-    if (!currentUser || currentUser.username.trim().toLowerCase() !== "fawad malik") return;
-    adminDialog.showModal();
-    await loadAdminDashboard();
-  });
-
-  closeAdminBtn.addEventListener("click", () => adminDialog.close());
-
-  adminPasswordForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    adminPasswordMessage.textContent = "";
-    adminPasswordMessage.className = "message";
-    adminPasswordBtn.disabled = true;
-    adminPasswordBtn.textContent = "Resetting…";
-    try {
-      await api("/api/admin/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: "Fawad Malik", password: adminNewPassword.value })
-      });
-      adminPasswordForm.reset();
-      adminPasswordMessage.textContent = "Password reset. All admin sessions were signed out; log in again with the new password.";
-      adminPasswordMessage.className = "message success";
-      currentUser = null;
-      updateAccountUi();
-      setTimeout(() => adminDialog.close(), 1200);
-    } catch (error) {
-      adminPasswordMessage.textContent = error.message || "Could not reset the password.";
-      adminPasswordMessage.className = "message error";
-    } finally {
-      adminPasswordBtn.disabled = false;
-      adminPasswordBtn.textContent = "Reset password";
-    }
-  });
-
-  signInBtn.addEventListener("click", async () => {
-    if (currentUser) {
-      try {
-        await api("/api/auth/logout", { method: "POST" });
-      } finally {
-        currentUser = null;
-        updateAccountUi();
-      }
-      return;
-    }
-    openAuth("login");
-  });
-
-  closeAuthBtn.addEventListener("click", () => authDialog.close());
-
-  authSwitch.addEventListener("click", () => {
-    openAuth(registerMode ? "login" : "register");
-  });
-
-  authForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    setAuthMessage("");
-    authSubmit.disabled = true;
-    authSubmit.textContent = registerMode ? "Creating…" : "Signing in…";
-
-    try {
-      const payload = {
-        username: authUsername.value.trim(),
-        password: authPassword.value
-      };
-      if (registerMode) payload.email = authEmail.value.trim();
-
-      currentUser = await api(registerMode ? "/api/auth/register" : "/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      await refreshAuthState();
-      if (!currentUser) {
-        throw new Error("Login succeeded, but the session could not be confirmed. Please try again.");
-      }
-      authDialog.close();
-      updateAccountUi();
-      setMessage(registerMode ? "Account created. You are now signed in." : "Signed in successfully.", "success");
-      authForm.reset();
-    } catch (error) {
-      setAuthMessage(error.message || "Authentication failed.", "error");
-    } finally {
-      authSubmit.disabled = false;
-      authSubmit.textContent = registerMode ? "Register" : "Log in";
-    }
-  });
-
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("");
@@ -330,17 +79,6 @@
     const reelUrl = safeUrl(urlInput.value.trim());
     if (!reelUrl) {
       setMessage("Enter a valid URL.", "error");
-      return;
-    }
-
-    await authReady;
-    if (!currentUser) {
-      await refreshAuthState();
-    }
-    if (!currentUser) {
-      setMessage("Log in before downloading.", "error");
-      openAuth("login");
-      setAuthMessage("Log in with your username and password to use ReelGrab.");
       return;
     }
 
@@ -361,12 +99,6 @@
       setMessage("Your MP4 is ready. Starting download…", "success");
       await downloadMp4(result.file_url);
     } catch (error) {
-      if (/please log in|invalid or expired/i.test(error.message || "")) {
-        await refreshAuthState();
-        if (!currentUser) {
-          openAuth("login");
-        }
-      }
       console.error("ReelGrab download:", error);
       setMessage(error.message || "Something went wrong.", "error");
     } finally {
@@ -374,5 +106,4 @@
       downloadBtn.textContent = "Download MP4";
     }
   });
-
 })();

@@ -39,6 +39,11 @@ class AuthSecurityTests(unittest.TestCase):
         self.assertTrue(is_admin_user({"username": "Fawad Malik"}))
         self.assertFalse(is_admin_user({"username": "someone else"}))
 
+    def test_password_reset_requires_admin_session(self):
+        client = TestClient(app)
+        response = client.post("/api/admin/reset-password", json={"username": "Fawad Malik", "password": "example-new-password"})
+        self.assertEqual(response.status_code, 401)
+
     def test_session_max_age_matches_familyflow_style(self):
         self.assertEqual(SESSION_MAX_AGE, 30 * 24 * 60 * 60)
 

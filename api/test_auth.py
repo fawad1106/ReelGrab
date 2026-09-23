@@ -1,13 +1,12 @@
 import os
 import unittest
 
-from fastapi.testclient import TestClient
-
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from main import (
     Credentials,
     hash_password,
@@ -79,6 +78,14 @@ class AuthSecurityTests(unittest.TestCase):
         )
         self.assertEqual(username, "izunay")
         self.assertEqual(email, "izunay@example.com")
+
+    def test_registration_accepts_familyflow_style_username_with_spaces(self):
+        username, email = validate_credentials(
+            Credentials(username="Fawad Malik", password="password123", email="fawad@example.com"),
+            require_email=True,
+        )
+        self.assertEqual(username, "fawad malik")
+        self.assertEqual(email, "fawad@example.com")
 
 
 if __name__ == "__main__":

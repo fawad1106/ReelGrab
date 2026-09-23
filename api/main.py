@@ -362,6 +362,12 @@ def admin_dashboard(reelgrab_session: str | None = Cookie(default=None, alias=AU
     }
 
 
+@app.post("/api/admin/reset-password")
+def admin_reset_password(x: Credentials, reelgrab_session: str | None = Cookie(default=None, alias=AUTH_COOKIE)):
+    reset_admin_password(reelgrab_session, x.password)
+    return {"ok": True}
+
+
 @app.post("/api/auth/logout")
 def logout(response: Response, reelgrab_session: str | None = Cookie(default=None, alias=AUTH_COOKIE)):
     if reelgrab_session:

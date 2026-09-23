@@ -14,6 +14,10 @@
   const adminUsers = $("#adminUsers");
   const adminDownloads = $("#adminDownloads");
   const adminMessage = $("#adminMessage");
+  const adminPasswordForm = $("#adminPasswordForm");
+  const adminNewPassword = $("#adminNewPassword");
+  const adminPasswordBtn = $("#adminPasswordBtn");
+  const adminPasswordMessage = $("#adminPasswordMessage");
   const authDialog = $("#authDialog");
   const closeAuthBtn = $("#closeAuthBtn");
   const authForm = $("#authForm");
@@ -211,6 +215,33 @@
   });
 
   closeAdminBtn.addEventListener("click", () => adminDialog.close());
+
+  adminPasswordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    adminPasswordMessage.textContent = "";
+    adminPasswordMessage.className = "message";
+    adminPasswordBtn.disabled = true;
+    adminPasswordBtn.textContent = "Resetting…";
+    try {
+      await api("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: "Fawad Malik", password: adminNewPassword.value })
+      });
+      adminPasswordForm.reset();
+      adminPasswordMessage.textContent = "Password reset. All admin sessions were signed out; log in again with the new password.";
+      adminPasswordMessage.className = "message success";
+      currentUser = null;
+      updateAccountUi();
+      setTimeout(() => adminDialog.close(), 1200);
+    } catch (error) {
+      adminPasswordMessage.textContent = error.message || "Could not reset the password.";
+      adminPasswordMessage.className = "message error";
+    } finally {
+      adminPasswordBtn.disabled = false;
+      adminPasswordBtn.textContent = "Reset password";
+    }
+  });
 
   signInBtn.addEventListener("click", async () => {
     if (currentUser) {

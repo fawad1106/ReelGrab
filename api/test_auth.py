@@ -39,6 +39,23 @@ class AuthSecurityTests(unittest.TestCase):
         self.assertTrue(is_admin_user({"username": "Fawad Malik"}))
         self.assertFalse(is_admin_user({"username": "someone else"}))
 
+
+    def test_login_cookie_allows_cross_origin_authenticated_requests(self):
+        from main import AUTH_COOKIE
+        from unittest.mock import patch
+
+        client = TestClient(app)
+        fake_user = {"id": "user-1", "username": "izunay", "email": "izunay@example.com", "password_hash": hash_password("password123")}
+
+        with patch("main.db_get", return_value=[fake_user]), patch("main.create_session", return_value="test-session-token"):
+            response = client.post("/api/auth/login", json={"username": "izunay", "password": "password123"})
+
+        self.assertEqual(response.status_code, 200)
+        cookie = response.headers.get("set-cookie", "")
+        self.assertIn(f"{AUTH_COOKIE}=test-session-token", cookie)
+        self.assertIn("SameSite=None", cookie)
+        self.assertIn("Secure", cookie)
+
     def test_password_reset_requires_admin_session(self):
         client = TestClient(app)
         response = client.post("/api/admin/reset-password", json={"username": "Fawad Malik", "password": "example-new-password"})

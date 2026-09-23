@@ -1,6 +1,8 @@
 import os
 import unittest
 
+from fastapi.testclient import TestClient
+
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
@@ -13,6 +15,7 @@ from main import (
     SESSION_MAX_AGE,
     validate_credentials,
     verify_password,
+    app,
 )
 
 
@@ -33,6 +36,20 @@ class AuthSecurityTests(unittest.TestCase):
 
     def test_session_max_age_matches_familyflow_style(self):
         self.assertEqual(SESSION_MAX_AGE, 30 * 24 * 60 * 60)
+
+    def test_render_frontend_origins_are_allowed_by_cors(self):
+        client = TestClient(app)
+        response = client.options(
+            "/api/auth/login",
+            headers={
+                "Origin": "https://reelgrab-preview.onrender.com",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("access-control-allow-origin"), "https://reelgrab-preview.onrender.com")
+        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
 
     def test_registration_requires_valid_email(self):
         with self.assertRaises(HTTPException):

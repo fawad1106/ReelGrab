@@ -10,7 +10,6 @@
 <body>
   <header class="topbar">
     <a class="brand" href=".">Reel<span>Grab</span></a>
-    <div class="account-actions"><button id="adminBtn" class="ghost-btn hidden" type="button">Admin</button><button id="signInBtn" class="ghost-btn" type="button">Log in</button></div>
   </header>
   <main class="container">
     <section class="hero">
@@ -28,70 +27,7 @@
       </form>
     </section>
   </main>
-
-  <dialog id="adminDialog">
-    <div class="admin-card">
-      <button id="closeAdminBtn" class="close-btn" type="button" aria-label="Close">×</button>
-      <div class="admin-kicker">ADMIN CONSOLE</div>
-      <h2>ReelGrab Dashboard</h2>
-      <p class="admin-subtitle">Manage users and monitor every download made through ReelGrab.</p>
-      <div id="adminStats" class="admin-stats"></div>
-      <div class="admin-section">
-        <button class="section-head section-toggle" type="button" data-target="adminUsers">
-          <div>
-            <h3>Users</h3>
-            <p>Accounts registered on ReelGrab.</p>
-          </div>
-          <span class="section-toggle-icon" aria-hidden="true">⌄</span>
-        </button>
-        <div id="adminUsers" class="admin-table-wrap"></div>
-      </div>
-      <div class="admin-section">
-        <button class="section-head section-toggle" type="button" data-target="adminDownloads">
-          <div>
-            <h3>Download activity</h3>
-            <p>Who downloaded what, when, and the processing result.</p>
-          </div>
-          <span class="section-toggle-icon" aria-hidden="true">⌄</span>
-        </button>
-        <div id="adminDownloads" class="admin-table-wrap"></div>
-      </div>
-      <div class="admin-section">
-        <div class="section-head">
-          <div>
-            <h3>Admin password</h3>
-            <p>Set a new password for the Fawad Malik admin account. Existing sessions will be signed out.</p>
-          </div>
-        </div>
-        <form id="adminPasswordForm" class="admin-password-form">
-          <input id="adminNewPassword" type="password" placeholder="New password (8–128 characters)" minlength="8" maxlength="128" autocomplete="new-password" required />
-          <button id="adminPasswordBtn" class="primary-btn" type="submit">Reset password</button>
-        </form>
-        <p id="adminPasswordMessage" class="message" role="status" aria-live="polite"></p>
-      </div>
-      <p id="adminMessage" class="message" role="status" aria-live="polite"></p>
-    </div>
-  </dialog>
-  <dialog id="authDialog">
-    <div class="auth-card">
-      <button id="closeAuthBtn" class="close-btn" type="button" aria-label="Close">×</button>
-      <div class="auth-brand">Reel<span>Grab</span></div>
-      <h2 id="authTitle">Welcome back</h2>
-      <p id="authSubtitle">Log in to continue to ReelGrab.</p>
-      <form id="authForm">
-        <label for="authUsername">Username</label>
-        <input id="authUsername" type="text" placeholder="Your username" autocomplete="username" minlength="3" maxlength="40" required />
-        <label id="authEmailLabel" for="authEmail" hidden>Email</label>
-        <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" hidden />
-        <label for="authPassword">Password</label>
-        <input id="authPassword" type="password" placeholder="At least 8 characters" autocomplete="current-password" minlength="8" maxlength="128" required />
-        <button id="authSubmit" class="primary-btn" type="submit">Log in</button>
-      </form>
-      <button id="authSwitch" class="ghost-btn auth-secondary" type="button">Need an account? Register</button>
-      <p id="authMessage" class="message" role="status" aria-live="polite"></p>
-    </div>
-  </dialog>
   <script src="js/config.js?v=20260923"></script>
-  <script src="js/app.js?v=20260923-7"></script>
+  <script src="js/app.js?v=20260924-1"></script>
 </body>
 </html>

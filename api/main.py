@@ -27,12 +27,13 @@ LOGIN_WINDOW_SECONDS = 300
 LOGIN_MAX_FAILURES = 8
 LOGIN_LIMIT = {}
 AUTH_COOKIE = "reelgrab_session"
-FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://reelgrab-3wzu.onrender.com")
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://reelgrab-3wzu.onrender.com").rstrip("/")
+ALLOWED_ORIGINS = list(dict.fromkeys([FRONTEND_ORIGIN, "https://reelgrab-3wzu.onrender.com"] + [x.strip().rstrip("/") for x in os.getenv("ALLOWED_ORIGINS", "").split(",") if x.strip()]))
 
 app = FastAPI(title="ReelGrab MP4 API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[x.strip() for x in os.getenv("ALLOWED_ORIGINS", FRONTEND_ORIGIN).split(",") if x.strip()],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["Content-Type"],
@@ -88,7 +89,7 @@ def validate_credentials(x: Credentials, require_email=False):
             raise HTTPException(400, "Email is required when creating an account.")
         if len(email) > 255:
             raise HTTPException(400, "Email address is too long.")
-        if not re.fullmatch(r"[^@\\s]+@[^@\\s]+\\.[^@\\s]+", email):
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             raise HTTPException(400, "Enter a valid email address.")
     return username, email
 

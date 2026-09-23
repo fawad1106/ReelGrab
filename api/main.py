@@ -34,17 +34,32 @@ app = FastAPI(title="ReelGrab MP4 API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"https://[a-z0-9-]+\.onrender\.com",
+    allow_origin_regex=r"^https://[a-z0-9-]+\.onrender\.com$",
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Content-Type"],
 )
 
+
+@app.middleware("http")
+async def reinforce_cors_headers(request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("origin")
+    if origin and (origin in ALLOWED_ORIGINS or re.fullmatch(r"https://[a-z0-9-]+\.onrender\.com", origin)):
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = request.headers.get("access-control-request-headers", "*")
+        response.headers["Vary"] = "Origin"
+    return response
+
+
 class Credentials(BaseModel):
     username: str
     password: str
     email: str | None = None
+
 
 class DownloadRequest(BaseModel):
     url: HttpUrl
@@ -83,8 +98,6 @@ def validate_credentials(x: Credentials, require_email=False):
     username = x.username.strip().lower()
     email = (x.email or "").strip().lower() or None
 
-    # Match FamilyFlow's username behavior: trim/lowercase and allow spaces
-    # and other normal characters, while retaining the same 3–40 length limit.
     if not 3 <= len(username) <= 40:
         raise HTTPException(400, "Username must be 3–40 characters.")
 
@@ -127,10 +140,7 @@ def db_delete(path: str, params=None):
 
 def create_session(user_id: str) -> str:
     token = new_session_token()
-    r = db_insert("app_sessions", {
-        "token": token,
-        "user_id": user_id,
-    })
+    r = db_insert("app_sessions", {"token": token, "user_id": user_id})
     if r.status_code not in (200, 201):
         raise HTTPException(500, "Could not create your session.")
     return token
@@ -244,11 +254,7 @@ def register(x: Credentials, response: Response):
     existing = db_get("app_users", {"select": "id", "username": f"eq.{username}", "limit": "1"})
     if existing:
         raise HTTPException(409, "Username already exists.")
-    payload = {
-        "username": username,
-        "password_hash": hash_password(x.password),
-        "email": email,
-    }
+    payload = {"username": username, "password_hash": hash_password(x.password), "email": email}
     created = db_insert("app_users", payload)
     if created.status_code not in (200, 201):
         if created.status_code == 409:
@@ -256,14 +262,7 @@ def register(x: Credentials, response: Response):
         raise HTTPException(500, "Could not create your account.")
     user = created.json()[0]
     token = create_session(user["id"])
-    response.set_cookie(
-        AUTH_COOKIE,
-        token,
-        httponly=True,
-        samesite="lax",
-        secure=True,
-        max_age=SESSION_MAX_AGE,
-    )
+    response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", secure=True, max_age=SESSION_MAX_AGE)
     return {"id": user["id"], "username": user["username"], "email": user.get("email")}
 
 
@@ -287,14 +286,7 @@ def login(x: Credentials, response: Response):
 
     LOGIN_LIMIT.pop(username, None)
     token = create_session(user["id"])
-    response.set_cookie(
-        AUTH_COOKIE,
-        token,
-        httponly=True,
-        samesite="lax",
-        secure=True,
-        max_age=SESSION_MAX_AGE,
-    )
+    response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", secure=True, max_age=SESSION_MAX_AGE)
     return {"id": user["id"], "username": user["username"], "email": user.get("email")}
 
 
@@ -320,11 +312,7 @@ def download(body: DownloadRequest, reelgrab_session: str | None = Cookie(defaul
         raise HTTPException(status_code=400, detail="Only Instagram Reel/Post URLs are supported.")
 
     download_id = None
-    record_response = download_record_insert({
-        "user_id": user["id"],
-        "reel_url": url,
-        "status": "processing",
-    })
+    record_response = download_record_insert({"user_id": user["id"], "reel_url": url, "status": "processing"})
     if record_response.status_code not in (200, 201):
         raise HTTPException(status_code=500, detail="Could not create download record.")
     record_rows = record_response.json()
@@ -334,14 +322,9 @@ def download(body: DownloadRequest, reelgrab_session: str | None = Cookie(defaul
         with tempfile.TemporaryDirectory() as tmp:
             output_template = str(Path(tmp) / "%(id)s.%(ext)s")
             command = [
-                "yt-dlp",
-                "--no-playlist",
-                "--max-filesize", str(MAX_FILE_SIZE),
-                "--restrict-filenames",
-                "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
-                "--merge-output-format", "mp4",
-                "-o", output_template,
-                url,
+                "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
+                "--restrict-filenames", "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
+                "--merge-output-format", "mp4", "-o", output_template, url,
             ]
             completed = subprocess.run(command, capture_output=True, text=True, timeout=120)
             if completed.returncode != 0:

@@ -175,7 +175,7 @@
         ["Failed", stats.failed_downloads],
         ["Processing", stats.processing_downloads]
       ].map(([label, value]) => `
-        <div class="admin-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+        <button class="admin-stat admin-stat-button" type="button" data-admin-target="${label === "Users" ? "adminUsers" : label === "Downloads" ? "adminDownloads" : ""}" ${["Users","Downloads"].includes(label) ? "" : "disabled"}><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></button>
       `).join("");
 
       adminUsers.innerHTML = data.users?.length
@@ -200,6 +200,27 @@
             }).join("")
           }</tbody></table>`
         : '<div class="empty-state">No downloads recorded yet.</div>';
+
+      document.querySelectorAll(".section-toggle").forEach((button) => {
+        button.onclick = () => {
+          const target = document.getElementById(button.dataset.target);
+          if (!target) return;
+          target.hidden = !target.hidden;
+          button.classList.toggle("collapsed", target.hidden);
+          button.querySelector(".section-toggle-icon").textContent = target.hidden ? "›" : "⌄";
+        };
+      });
+
+      document.querySelectorAll(".admin-stat-button:not([disabled])").forEach((button) => {
+        button.onclick = () => {
+          const target = document.getElementById(button.dataset.adminTarget);
+          if (!target) return;
+          target.hidden = false;
+          target.closest(".admin-section")?.querySelector(".section-toggle")?.classList.remove("collapsed");
+          target.closest(".admin-section")?.querySelector(".section-toggle-icon").textContent = "⌄";
+          target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        };
+      });
 
       adminMessage.textContent = `Showing ${data.downloads?.length || 0} recent download records.`;
     } catch (error) {

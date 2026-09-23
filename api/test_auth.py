@@ -5,7 +5,15 @@ os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
 
-from main import hash_password, verify_password, new_session_token, SESSION_MAX_AGE
+from fastapi import HTTPException
+from main import (
+    Credentials,
+    hash_password,
+    new_session_token,
+    SESSION_MAX_AGE,
+    validate_credentials,
+    verify_password,
+)
 
 
 class AuthSecurityTests(unittest.TestCase):
@@ -25,6 +33,28 @@ class AuthSecurityTests(unittest.TestCase):
 
     def test_session_max_age_matches_familyflow_style(self):
         self.assertEqual(SESSION_MAX_AGE, 30 * 24 * 60 * 60)
+
+    def test_registration_requires_valid_email(self):
+        with self.assertRaises(HTTPException):
+            validate_credentials(
+                Credentials(username="izunay", password="password123", email=""),
+                require_email=True,
+            )
+
+    def test_registration_rejects_malformed_email(self):
+        with self.assertRaises(HTTPException):
+            validate_credentials(
+                Credentials(username="izunay", password="password123", email="not-an-email"),
+                require_email=True,
+            )
+
+    def test_registration_accepts_valid_email(self):
+        username, email = validate_credentials(
+            Credentials(username="Izunay", password="password123", email="izunay@example.com"),
+            require_email=True,
+        )
+        self.assertEqual(username, "izunay")
+        self.assertEqual(email, "izunay@example.com")
 
 
 if __name__ == "__main__":

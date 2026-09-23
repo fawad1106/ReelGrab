@@ -25,6 +25,7 @@ SIGNED_URL_SECONDS = int(os.getenv("SIGNED_URL_SECONDS", "604800"))
 SESSION_MAX_AGE = 30 * 24 * 60 * 60
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_MAX_FAILURES = 8
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "fawad malik").strip().lower()
 LOGIN_LIMIT = {}
 AUTH_COOKIE = "reelgrab_session"
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://reelgrab-3wzu.onrender.com").rstrip("/")
@@ -176,6 +177,17 @@ def current_user(session_token: str | None):
     return user
 
 
+def is_admin_user(user: dict | None) -> bool:
+    return bool(user and str(user.get("username", "")).strip().lower() == ADMIN_USERNAME)
+
+
+def require_admin(session_token: str | None):
+    user = require_user(session_token)
+    if not is_admin_user(user):
+        raise HTTPException(403, "Admin access required.")
+    return user
+
+
 def require_user(session_token: str | None):
     user = current_user(session_token)
     if not user:
@@ -288,6 +300,45 @@ def login(x: Credentials, response: Response):
     token = create_session(user["id"])
     response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", secure=True, max_age=SESSION_MAX_AGE)
     return {"id": user["id"], "username": user["username"], "email": user.get("email")}
+
+
+@app.get("/api/admin/dashboard")
+def admin_dashboard(reelgrab_session: str | None = Cookie(default=None, alias=AUTH_COOKIE)):
+    require_admin(reelgrab_session)
+
+    users = db_get(
+        "app_users",
+        {
+            "select": "id,username,email,created_at",
+            "order": "created_at.desc",
+            "limit": "500",
+        },
+    )
+    downloads = db_get(
+        "downloads",
+        {
+            "select": "id,user_id,reel_url,file_name,status,file_url,error_message,created_at,completed_at,app_users(username,email)",
+            "order": "created_at.desc",
+            "limit": "500",
+        },
+    )
+
+    completed = sum(1 for item in downloads if item.get("status") == "completed")
+    failed = sum(1 for item in downloads if item.get("status") == "failed")
+    processing = sum(1 for item in downloads if item.get("status") == "processing")
+
+    return {
+        "admin": {"username": ADMIN_USERNAME},
+        "stats": {
+            "total_users": len(users),
+            "total_downloads": len(downloads),
+            "completed_downloads": completed,
+            "failed_downloads": failed,
+            "processing_downloads": processing,
+        },
+        "users": users,
+        "downloads": downloads,
+    }
 
 
 @app.post("/api/auth/logout")

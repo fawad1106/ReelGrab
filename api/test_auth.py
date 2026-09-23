@@ -33,6 +33,12 @@ class AuthSecurityTests(unittest.TestCase):
         self.assertNotIn("/", first)
         self.assertNotIn("+", first)
 
+    def test_only_fawad_malik_is_an_admin(self):
+        from main import is_admin_user
+        self.assertTrue(is_admin_user({"username": "fawad malik"}))
+        self.assertTrue(is_admin_user({"username": "Fawad Malik"}))
+        self.assertFalse(is_admin_user({"username": "someone else"}))
+
     def test_session_max_age_matches_familyflow_style(self):
         self.assertEqual(SESSION_MAX_AGE, 30 * 24 * 60 * 60)
 

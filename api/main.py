@@ -188,6 +188,27 @@ def require_admin(session_token: str | None):
     return user
 
 
+def reset_admin_password(session_token: str | None, new_password: str):
+    require_admin(session_token)
+    if len(new_password) < 8 or len(new_password) > 128:
+        raise HTTPException(400, "Password must be 8–128 characters.")
+    rows = db_get("app_users", {"select": "id,username", "username": f"eq.{ADMIN_USERNAME}", "limit": "1"})
+    if not rows:
+        raise HTTPException(404, "Admin account not found.")
+    user_id = rows[0]["id"]
+    r = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/app_users",
+        params={"id": f"eq.{user_id}"},
+        headers=supabase_headers(service=True),
+        json={"password_hash": hash_password(new_password)},
+        timeout=15,
+    )
+    if r.status_code not in (200, 204):
+        raise HTTPException(500, "Could not reset the admin password.")
+    db_delete("app_sessions", {"user_id": f"eq.{user_id}"})
+    return {"ok": True}
+
+
 def require_user(session_token: str | None):
     user = current_user(session_token)
     if not user:

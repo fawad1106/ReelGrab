@@ -44,13 +44,22 @@
   }
 
   async function api(path, options = {}) {
-    const response = await fetch(`${API_BASE}${path}`, {
-      credentials: "include",
-      ...options,
-      headers: {
-        ...(options.headers || {})
-      }
-    });
+    let response;
+    try {
+      response = await fetch(`${API_BASE}${path}`, {
+        credentials: "include",
+        ...options,
+        headers: {
+          ...(options.headers || {})
+        }
+      });
+    } catch (error) {
+      console.error("ReelGrab API network error:", error);
+      throw new Error(
+        "Could not connect to ReelGrab. Please refresh the page and try again. If it keeps happening, the API connection is unavailable."
+      );
+    }
+
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(result.detail || result.error || `Request failed (HTTP ${response.status}).`);
@@ -59,7 +68,13 @@
   }
 
   async function downloadMp4(fileUrl) {
-    const response = await fetch(fileUrl);
+    let response;
+    try {
+      response = await fetch(fileUrl);
+    } catch (error) {
+      console.error("ReelGrab MP4 network error:", error);
+      throw new Error("The MP4 could not be reached from your browser.");
+    }
     if (!response.ok) throw new Error(`Could not fetch the MP4 (HTTP ${response.status}).`);
 
     const blob = await response.blob();

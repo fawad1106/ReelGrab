@@ -1,119 +1,59 @@
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
-os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
 
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from main import (
-    Credentials,
-    hash_password,
-    new_session_token,
-    SESSION_MAX_AGE,
-    validate_credentials,
-    verify_password,
-    app,
-)
+from main import app, is_supported_instagram_url
 
 
-class AuthSecurityTests(unittest.TestCase):
-    def test_password_hash_round_trip(self):
-        stored = hash_password("correct horse battery staple")
-        self.assertNotEqual(stored, "correct horse battery staple")
-        self.assertTrue(verify_password("correct horse battery staple", stored))
-        self.assertFalse(verify_password("wrong password", stored))
-
-    def test_session_tokens_are_random_and_url_safe(self):
-        first = new_session_token()
-        second = new_session_token()
-        self.assertNotEqual(first, second)
-        self.assertGreaterEqual(len(first), 64)
-        self.assertNotIn("/", first)
-        self.assertNotIn("+", first)
-
-    def test_only_fawad_malik_is_an_admin(self):
-        from main import is_admin_user
-        self.assertTrue(is_admin_user({"username": "fawad malik"}))
-        self.assertTrue(is_admin_user({"username": "Fawad Malik"}))
-        self.assertFalse(is_admin_user({"username": "someone else"}))
-
-
-    def test_login_cookie_allows_cross_origin_authenticated_requests(self):
-        from main import AUTH_COOKIE
-        from unittest.mock import patch
-
+class ReelGrabTests(unittest.TestCase):
+    def test_health_endpoint_is_public(self):
         client = TestClient(app)
-        fake_user = {"id": "user-1", "username": "izunay", "email": "izunay@example.com", "password_hash": hash_password("password123")}
-
-        with patch("main.db_get", return_value=[fake_user]), patch("main.create_session", return_value="test-session-token"):
-            response = client.post("/api/auth/login", json={"username": "izunay", "password": "password123"})
-
+        response = client.get("/health")
         self.assertEqual(response.status_code, 200)
-        cookie = response.headers.get("set-cookie", "")
-        self.assertIn(f"{AUTH_COOKIE}=test-session-token", cookie)
-        self.assertIn("SameSite=None", cookie)
-        self.assertIn("Secure", cookie)
+        self.assertTrue(response.json()["ok"])
 
-    def test_password_reset_requires_admin_session(self):
+    def test_instagram_url_validation(self):
+        self.assertTrue(is_supported_instagram_url("https://www.instagram.com/reel/ABC123/"))
+        self.assertTrue(is_supported_instagram_url("https://www.instagram.com/p/ABC123/"))
+        self.assertFalse(is_supported_instagram_url("https://example.com/video/ABC123"))
+
+    def test_download_endpoint_does_not_require_login(self):
         client = TestClient(app)
-        response = client.post("/api/admin/reset-password", json={"username": "Fawad Malik", "password": "example-new-password"})
-        self.assertEqual(response.status_code, 401)
 
-    def test_session_max_age_matches_familyflow_style(self):
-        self.assertEqual(SESSION_MAX_AGE, 30 * 24 * 60 * 60)
+        class FakeResponse:
+            status_code = 201
 
-    def test_render_frontend_origins_are_allowed_by_cors(self):
-        client = TestClient(app)
-        response = client.options(
-            "/api/auth/login",
-            headers={
-                "Origin": "https://reelgrab-preview.onrender.com",
-                "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "content-type",
-            },
-        )
+            def json(self):
+                return [{"id": "download-test"}]
+
+        class FakeCompleted:
+            returncode = 0
+            stderr = ""
+
+        def fake_run(command, **kwargs):
+            output_template = command[command.index("-o") + 1]
+            output_path = output_template.replace("%(id)s", "download-test").replace("%(ext)s", "mp4")
+            with open(output_path, "wb") as fh:
+                fh.write(b"fake mp4")
+            return FakeCompleted()
+
+        with patch("main.download_record_insert", return_value=FakeResponse()), \
+             patch("main.subprocess.run", side_effect=fake_run), \
+             patch("main.upload_file"), \
+             patch("main.create_signed_url", return_value="https://example.com/signed.mp4"), \
+             patch("main.db_update"):
+            response = client.post(
+                "/api/download",
+                json={"url": "https://www.instagram.com/reel/ABC123/"},
+            )
+
+        self.assertNotEqual(response.status_code, 401)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.headers.get("access-control-allow-origin"), "https://reelgrab-preview.onrender.com")
-        self.assertEqual(response.headers.get("access-control-allow-credentials"), "true")
-
-    def test_registration_requires_valid_email(self):
-        with self.assertRaises(HTTPException):
-            validate_credentials(
-                Credentials(username="izunay", password="password123", email=""),
-                require_email=True,
-            )
-
-    def test_registration_rejects_malformed_email(self):
-        with self.assertRaises(HTTPException):
-            validate_credentials(
-                Credentials(username="izunay", password="password123", email="not-an-email"),
-                require_email=True,
-            )
-
-    def test_registration_rejects_email_without_dot_domain(self):
-        with self.assertRaises(HTTPException):
-            validate_credentials(
-                Credentials(username="izunay", password="password123", email="izunay@example"),
-                require_email=True,
-            )
-
-    def test_registration_accepts_valid_email(self):
-        username, email = validate_credentials(
-            Credentials(username="Izunay", password="password123", email="izunay@example.com"),
-            require_email=True,
-        )
-        self.assertEqual(username, "izunay")
-        self.assertEqual(email, "izunay@example.com")
-
-    def test_registration_accepts_familyflow_style_username_with_spaces(self):
-        username, email = validate_credentials(
-            Credentials(username="Fawad Malik", password="password123", email="fawad@example.com"),
-            require_email=True,
-        )
-        self.assertEqual(username, "fawad malik")
-        self.assertEqual(email, "fawad@example.com")
+        self.assertEqual(response.json()["file_url"], "https://example.com/signed.mp4")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@
   const API_BASE = window.DOWNLOAD_API_URL.replace(/\/api\/download\/?$/, "");
   let registerMode = false;
   let currentUser = null;
+  let authReady = null;
 
   function setMessage(text, type = "") {
     message.textContent = text;
@@ -107,17 +108,31 @@
     authUsername.focus();
   }
 
+  function updateAccountUi() {
+    if (currentUser) {
+      signInBtn.textContent = currentUser.username || "Account";
+      signInBtn.title = "Signed in. Click to log out.";
+      signInBtn.setAttribute("aria-label", `Signed in as ${currentUser.username || "your account"}`);
+      return;
+    }
+    signInBtn.textContent = "Log in";
+    signInBtn.title = "";
+    signInBtn.setAttribute("aria-label", "Log in");
+  }
+
   async function refreshAuthState() {
     try {
       currentUser = await api("/api/auth/me");
-      signInBtn.textContent = "Log out";
-      signInBtn.title = currentUser.username || "Signed-in account";
     } catch {
       currentUser = null;
-      signInBtn.textContent = "Log in";
-      signInBtn.title = "";
+    } finally {
+      updateAccountUi();
     }
+    return currentUser;
   }
+
+  authReady = refreshAuthState();
+
 
   signInBtn.addEventListener("click", async () => {
     if (currentUser) {
@@ -125,8 +140,7 @@
         await api("/api/auth/logout", { method: "POST" });
       } finally {
         currentUser = null;
-        signInBtn.textContent = "Log in";
-        signInBtn.title = "";
+        updateAccountUi();
       }
       return;
     }
@@ -159,8 +173,7 @@
       });
 
       authDialog.close();
-      signInBtn.textContent = "Log out";
-      signInBtn.title = currentUser.username;
+      updateAccountUi();
       setMessage(registerMode ? "Account created. You are now signed in." : "Signed in successfully.", "success");
       authForm.reset();
     } catch (error) {
@@ -181,6 +194,10 @@
       return;
     }
 
+    await authReady;
+    if (!currentUser) {
+      await refreshAuthState();
+    }
     if (!currentUser) {
       setMessage("Log in before downloading.", "error");
       openAuth("login");
@@ -218,5 +235,4 @@
     }
   });
 
-  refreshAuthState();
 })();

@@ -295,7 +295,7 @@ def register(x: Credentials, response: Response):
         raise HTTPException(500, "Could not create your account.")
     user = created.json()[0]
     token = create_session(user["id"])
-    response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="lax", secure=True, max_age=SESSION_MAX_AGE)
+    response.set_cookie(AUTH_COOKIE, token, httponly=True, samesite="none", secure=True, max_age=SESSION_MAX_AGE)
     return {"id": user["id"], "username": user["username"], "email": user.get("email")}
 
 

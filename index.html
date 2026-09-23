@@ -10,7 +10,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href=".">Reel<span>Grab</span></a>
-    <button id="signInBtn" class="ghost-btn" type="button">Log in</button>
+    <div class="account-actions"><button id="adminBtn" class="ghost-btn hidden" type="button">Admin</button><button id="signInBtn" class="ghost-btn" type="button">Log in</button></div>
   </header>
   <main class="container">
     <section class="hero">
@@ -28,6 +28,35 @@
       </form>
     </section>
   </main>
+
+  <dialog id="adminDialog">
+    <div class="admin-card">
+      <button id="closeAdminBtn" class="close-btn" type="button" aria-label="Close">×</button>
+      <div class="admin-kicker">ADMIN CONSOLE</div>
+      <h2>ReelGrab Dashboard</h2>
+      <p class="admin-subtitle">Manage users and monitor every download made through ReelGrab.</p>
+      <div id="adminStats" class="admin-stats"></div>
+      <div class="admin-section">
+        <div class="section-head">
+          <div>
+            <h3>Users</h3>
+            <p>Accounts registered on ReelGrab.</p>
+          </div>
+        </div>
+        <div id="adminUsers" class="admin-table-wrap"></div>
+      </div>
+      <div class="admin-section">
+        <div class="section-head">
+          <div>
+            <h3>Download activity</h3>
+            <p>Who downloaded what, when, and the processing result.</p>
+          </div>
+        </div>
+        <div id="adminDownloads" class="admin-table-wrap"></div>
+      </div>
+      <p id="adminMessage" class="message" role="status" aria-live="polite"></p>
+    </div>
+  </dialog>
   <dialog id="authDialog">
     <div class="auth-card">
       <button id="closeAuthBtn" class="close-btn" type="button" aria-label="Close">×</button>
@@ -48,6 +77,6 @@
     </div>
   </dialog>
   <script src="js/config.js?v=20260923"></script>
-  <script src="js/app.js?v=20260923-2"></script>
+  <script src="js/app.js?v=20260923-3"></script>
 </body>
 </html>

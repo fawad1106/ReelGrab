@@ -302,6 +302,10 @@
         body: JSON.stringify(payload)
       });
 
+      await refreshAuthState();
+      if (!currentUser) {
+        throw new Error("Login succeeded, but the session could not be confirmed. Please try again.");
+      }
       authDialog.close();
       updateAccountUi();
       setMessage(registerMode ? "Account created. You are now signed in." : "Signed in successfully.", "success");
@@ -353,9 +357,10 @@
       await downloadMp4(result.file_url);
     } catch (error) {
       if (/please log in|invalid or expired/i.test(error.message || "")) {
-        currentUser = null;
         await refreshAuthState();
-        openAuth("login");
+        if (!currentUser) {
+          openAuth("login");
+        }
       }
       console.error("ReelGrab download:", error);
       setMessage(error.message || "Something went wrong.", "error");

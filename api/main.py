@@ -82,10 +82,15 @@ def new_session_token() -> str:
 def validate_credentials(x: Credentials, require_email=False):
     username = x.username.strip().lower()
     email = (x.email or "").strip().lower() or None
-    if not re.fullmatch(r"[a-z0-9_.-]{3,40}", username):
-        raise HTTPException(400, "Username must be 3–40 characters using letters, numbers, dot, underscore or hyphen.")
+
+    # Match FamilyFlow's username behavior: trim/lowercase and allow spaces
+    # and other normal characters, while retaining the same 3–40 length limit.
+    if not 3 <= len(username) <= 40:
+        raise HTTPException(400, "Username must be 3–40 characters.")
+
     if len(x.password) < 8 or len(x.password) > 128:
         raise HTTPException(400, "Password must be 8–128 characters.")
+
     if require_email:
         if not email:
             raise HTTPException(400, "Email is required when creating an account.")
@@ -93,6 +98,7 @@ def validate_credentials(x: Credentials, require_email=False):
             raise HTTPException(400, "Email address is too long.")
         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
             raise HTTPException(400, "Enter a valid email address.")
+
     return username, email
 
 

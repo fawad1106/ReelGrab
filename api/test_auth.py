@@ -48,6 +48,13 @@ class AuthSecurityTests(unittest.TestCase):
                 require_email=True,
             )
 
+    def test_registration_rejects_email_without_dot_domain(self):
+        with self.assertRaises(HTTPException):
+            validate_credentials(
+                Credentials(username="izunay", password="password123", email="izunay@example"),
+                require_email=True,
+            )
+
     def test_registration_accepts_valid_email(self):
         username, email = validate_credentials(
             Credentials(username="Izunay", password="password123", email="izunay@example.com"),

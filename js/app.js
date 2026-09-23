@@ -7,6 +7,13 @@
   const downloadBtn = $("#downloadBtn");
   const message = $("#message");
   const signInBtn = $("#signInBtn");
+  const adminBtn = $("#adminBtn");
+  const adminDialog = $("#adminDialog");
+  const closeAdminBtn = $("#closeAdminBtn");
+  const adminStats = $("#adminStats");
+  const adminUsers = $("#adminUsers");
+  const adminDownloads = $("#adminDownloads");
+  const adminMessage = $("#adminMessage");
   const authDialog = $("#authDialog");
   const closeAuthBtn = $("#closeAuthBtn");
   const authForm = $("#authForm");
@@ -108,15 +115,29 @@
     authUsername.focus();
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[char]));
+  }
+
+  function formatDate(value) {
+    if (!value) return "—";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+  }
+
   function updateAccountUi() {
     if (currentUser) {
       signInBtn.textContent = currentUser.username || "Account";
+      adminBtn.classList.toggle("hidden", (currentUser.username || "").trim().toLowerCase() !== "fawad malik");
       signInBtn.title = "Signed in. Click to log out.";
       signInBtn.setAttribute("aria-label", `Signed in as ${currentUser.username || "your account"}`);
       return;
     }
     signInBtn.textContent = "Log in";
     signInBtn.title = "";
+    adminBtn.classList.add("hidden");
     signInBtn.setAttribute("aria-label", "Log in");
   }
 
@@ -133,6 +154,63 @@
 
   authReady = refreshAuthState();
 
+
+  async function loadAdminDashboard() {
+    adminMessage.textContent = "Loading dashboard…";
+    adminStats.innerHTML = "";
+    adminUsers.innerHTML = "";
+    adminDownloads.innerHTML = "";
+
+    try {
+      const data = await api("/api/admin/dashboard");
+      const stats = data.stats || {};
+      adminStats.innerHTML = [
+        ["Users", stats.total_users],
+        ["Downloads", stats.total_downloads],
+        ["Completed", stats.completed_downloads],
+        ["Failed", stats.failed_downloads],
+        ["Processing", stats.processing_downloads]
+      ].map(([label, value]) => `
+        <div class="admin-stat"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+      `).join("");
+
+      adminUsers.innerHTML = data.users?.length
+        ? `<table><thead><tr><th>Username</th><th>Email</th><th>Joined</th></tr></thead><tbody>${
+            data.users.map(user => `<tr><td>${escapeHtml(user.username)}</td><td>${escapeHtml(user.email || "—")}</td><td>${escapeHtml(formatDate(user.created_at))}</td></tr>`).join("")
+          }</tbody></table>`
+        : '<div class="empty-state">No users yet.</div>';
+
+      adminDownloads.innerHTML = data.downloads?.length
+        ? `<table><thead><tr><th>User</th><th>Instagram link</th><th>Status</th><th>File</th><th>Created</th><th>Completed</th><th>Error</th></tr></thead><tbody>${
+            data.downloads.map(item => {
+              const user = item.app_users || {};
+              return `<tr>
+                <td>${escapeHtml(user.username || item.user_id || "—")}</td>
+                <td class="url-cell"><a href="${escapeHtml(item.reel_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.reel_url)}</a></td>
+                <td><span class="status ${escapeHtml(item.status || "")}">${escapeHtml(item.status || "—")}</span></td>
+                <td>${escapeHtml(item.file_name || "—")}</td>
+                <td>${escapeHtml(formatDate(item.created_at))}</td>
+                <td>${escapeHtml(formatDate(item.completed_at))}</td>
+                <td>${escapeHtml(item.error_message || "—")}</td>
+              </tr>`;
+            }).join("")
+          }</tbody></table>`
+        : '<div class="empty-state">No downloads recorded yet.</div>';
+
+      adminMessage.textContent = `Showing ${data.downloads?.length || 0} recent download records.`;
+    } catch (error) {
+      adminMessage.textContent = error.message || "Could not load the admin dashboard.";
+      adminMessage.className = "message error";
+    }
+  }
+
+  adminBtn.addEventListener("click", async () => {
+    if (!currentUser || currentUser.username.trim().toLowerCase() !== "fawad malik") return;
+    adminDialog.showModal();
+    await loadAdminDashboard();
+  });
+
+  closeAdminBtn.addEventListener("click", () => adminDialog.close());
 
   signInBtn.addEventListener("click", async () => {
     if (currentUser) {

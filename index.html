@@ -54,6 +54,19 @@
         </div>
         <div id="adminDownloads" class="admin-table-wrap"></div>
       </div>
+      <div class="admin-section">
+        <div class="section-head">
+          <div>
+            <h3>Admin password</h3>
+            <p>Set a new password for the Fawad Malik admin account. Existing sessions will be signed out.</p>
+          </div>
+        </div>
+        <form id="adminPasswordForm" class="admin-password-form">
+          <input id="adminNewPassword" type="password" placeholder="New password (8–128 characters)" minlength="8" maxlength="128" autocomplete="new-password" required />
+          <button id="adminPasswordBtn" class="primary-btn" type="submit">Reset password</button>
+        </form>
+        <p id="adminPasswordMessage" class="message" role="status" aria-live="polite"></p>
+      </div>
       <p id="adminMessage" class="message" role="status" aria-live="polite"></p>
     </div>
   </dialog>

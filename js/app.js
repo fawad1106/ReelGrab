@@ -31,7 +31,8 @@
   const authTitle = $("#authTitle");
   const authSubtitle = $("#authSubtitle");
 
-  const API_BASE = window.DOWNLOAD_API_URL.replace(/\/api\/download\/?$/, "");
+  const configuredApiUrl = typeof window.DOWNLOAD_API_URL === "string" ? window.DOWNLOAD_API_URL.trim() : "";
+  const API_BASE = (configuredApiUrl || "https://reelgrab-api-79yl.onrender.com/api/download").replace(/\/api\/download\/?$/, "");
   let registerMode = false;
   let currentUser = null;
   let authReady = null;
@@ -115,7 +116,11 @@
       ? "Already have an account? Log in"
       : "Need an account? Register";
     setAuthMessage("");
-    authDialog.showModal();
+    if (typeof authDialog.showModal === "function") {
+      if (!authDialog.open) authDialog.showModal();
+    } else {
+      authDialog.setAttribute("open", "");
+    }
     authUsername.focus();
   }
 

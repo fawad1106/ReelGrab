@@ -180,8 +180,8 @@ def download(body: DownloadRequest):
             if completed.returncode != 0 and is_supported_youtube_url(url):
                 fallback_command = [
                     "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
-                    "--restrict-filenames", "--extractor-args", "youtube:player_client=android_vr",
-                    "-f", "18/b[ext=mp4]/b", "--merge-output-format", "mp4",
+                    "--restrict-filenames", "--extractor-args", "youtube:player_client=web_embedded",
+                    "-f", "best[ext=mp4]/best", "--merge-output-format", "mp4",
                     "-o", output_template, url,
                 ]
                 completed = subprocess.run(

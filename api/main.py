@@ -76,6 +76,24 @@ def is_supported_instagram_url(value: str) -> bool:
     return bool(re.match(r"^/(reel|reels|p)/[^/?#]+", parsed.path))
 
 
+def is_supported_youtube_url(value: str) -> bool:
+    parsed = urlparse(value)
+    host = (parsed.hostname or "").lower()
+    if host in {"youtu.be", "www.youtu.be"}:
+        return bool(parsed.path.strip("/"))
+    if host not in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}:
+        return False
+    return bool(re.match(r"^/(watch|shorts|live|embed)/[^/?#]+", parsed.path))
+
+
+def source_name(value: str) -> str:
+    if is_supported_youtube_url(value):
+        return "YouTube"
+    if is_supported_instagram_url(value):
+        return "Instagram"
+    return "supported source"
+
+
 def download_record_insert(payload):
     return db_insert("downloads", payload)
 
@@ -125,8 +143,11 @@ def health():
 def download(body: DownloadRequest):
     url = str(body.url)
 
-    if not is_supported_instagram_url(url):
-        raise HTTPException(status_code=400, detail="Only Instagram Reel/Post URLs are supported.")
+    if not (is_supported_instagram_url(url) or is_supported_youtube_url(url)):
+        raise HTTPException(
+            status_code=400,
+            detail="Only supported Instagram Reel/Post and YouTube video URLs are accepted.",
+        )
 
     download_id = None
     record_response = download_record_insert({
@@ -151,7 +172,7 @@ def download(body: DownloadRequest):
             if completed.returncode != 0:
                 raise RuntimeError(
                     completed.stderr[-1200:] or
-                    "yt-dlp could not retrieve this public media URL."
+                    f"yt-dlp could not retrieve this {source_name(url)} URL."
                 )
 
             mp4s = [p for p in Path(tmp).glob("*.mp4")]

@@ -150,13 +150,17 @@ def download(body: DownloadRequest):
         )
 
     download_id = None
+    # Downloads are currently anonymous. user_id is optional until authentication
+    # is wired into this endpoint.
     record_response = download_record_insert({
-        "user_id": None,
         "reel_url": url,
         "status": "processing"
     })
     if record_response.status_code not in (200, 201):
-        raise HTTPException(status_code=500, detail="Could not create download record.")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create download record: {record_response.text[:300]}",
+        )
     record_rows = record_response.json()
     download_id = record_rows[0]["id"] if record_rows else None
 

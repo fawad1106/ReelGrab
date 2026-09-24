@@ -2,5 +2,5 @@ fastapi==0.116.1
 uvicorn[standard]==0.35.0
 requests==2.32.5
 pydantic==2.11.7
-yt-dlp==2026.8.19
+yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git@c7fb478
 httpx==0.28.1

@@ -1,5 +1,7 @@
 -- ReelGrab Supabase schema
--- Storage remains private; ReelGrab's FastAPI backend handles custom sessions.
+-- Storage remains private; ReelGrab's FastAPI backend handles downloads.
+-- Downloads are currently anonymous; user_id is nullable until authentication
+-- is wired into the API.
 
 create extension if not exists pgcrypto;
 
@@ -13,7 +15,7 @@ create table if not exists public.app_users (
 
 create table if not exists public.app_sessions (
   token varchar(128) primary key,
-  user_id uuid not null references public.app_users(id) on delete cascade,
+  user_id uuid references public.app_users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 

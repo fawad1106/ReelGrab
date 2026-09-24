@@ -57,6 +57,50 @@ class ReelGrabTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["file_url"], "https://example.com/signed.mp4")
 
+    def test_youtube_download_retries_with_compatible_client_when_primary_fails(self):
+        client = TestClient(app)
+
+        class FakeResponse:
+            status_code = 201
+
+            def json(self):
+                return [{"id": "youtube-fallback-test"}]
+
+        calls = []
+
+        class FakeCompleted:
+            returncode = 0
+            stderr = ""
+
+        def fake_run(command, **kwargs):
+            calls.append(command)
+            output_template = command[command.index("-o") + 1]
+            output_path = output_template.replace("%(id)s", "youtube-fallback-test").replace("%(ext)s", "mp4")
+            if len(calls) == 1:
+                return type("Failed", (), {
+                    "returncode": 1,
+                    "stderr": "HTTP Error 403: Forbidden"
+                })()
+            with open(output_path, "wb") as fh:
+                fh.write(b"fallback mp4")
+            return FakeCompleted()
+
+        with patch("main.download_record_insert", return_value=FakeResponse()), \
+             patch("main.subprocess.run", side_effect=fake_run), \
+             patch("main.upload_file"), \
+             patch("main.create_signed_url", return_value="https://example.com/fallback.mp4"), \
+             patch("main.db_update"):
+            response = client.post(
+                "/api/download",
+                json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(calls), 2)
+        self.assertIn("--extractor-args", calls[1])
+        self.assertIn("youtube:player_client=android_vr", calls[1])
+        self.assertEqual(response.json()["file_url"], "https://example.com/fallback.mp4")
+
     def test_youtube_download_is_accepted(self):
         client = TestClient(app)
 

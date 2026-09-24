@@ -169,9 +169,25 @@ def download(body: DownloadRequest):
                 "--merge-output-format", "mp4", "-o", output_template, url,
             ]
             completed = subprocess.run(command, capture_output=True, text=True, timeout=120)
+
+            # YouTube is increasingly requiring Proof-of-Origin tokens for some
+            # clients/formats. Retry public videos with a client that does not
+            # currently require a PO token and fall back to progressive MP4.
+            if completed.returncode != 0 and is_supported_youtube_url(url):
+                fallback_command = [
+                    "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
+                    "--restrict-filenames", "--extractor-args", "youtube:player_client=android_vr",
+                    "-f", "18/b[ext=mp4]/b", "--merge-output-format", "mp4",
+                    "-o", output_template, url,
+                ]
+                completed = subprocess.run(
+                    fallback_command, capture_output=True, text=True, timeout=120
+                )
+
             if completed.returncode != 0:
+                error_detail = completed.stderr.strip() or completed.stdout.strip()
                 raise RuntimeError(
-                    completed.stderr[-1200:] or
+                    error_detail[-1200:] or
                     f"yt-dlp could not retrieve this {source_name(url)} URL."
                 )
 

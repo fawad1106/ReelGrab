@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Download Instagram Reels you own or have permission to save as MP4." />
-  <title>ReelGrab — Free Instagram Reel Downloader</title>
+  <meta name="description" content="Download Instagram Reels and YouTube videos you own or have permission to save as MP4." />
+  <title>ReelGrab — Free Video Downloader</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -14,10 +14,15 @@
   <main class="container">
     <section class="hero">
       <div class="badge">MP4 • SIMPLE • FAST</div>
-      <h1>Download Instagram Reels for Free.</h1>
-      <p>Paste an Instagram Reel or post URL and download it as an MP4 file.</p>
+      <h1>Download Videos for Free.</h1>
+      <p>Paste an Instagram Reel or YouTube video URL and download it as an MP4 file.</p>
       <form id="downloadForm" class="download-card">
-        <label for="videoUrl">Instagram Reel URL</label>
+        <div class="source-tabs" role="group" aria-label="Choose video source">
+          <button type="button" class="source-tab active" data-source="instagram">Instagram</button>
+          <button type="button" class="source-tab" data-source="youtube">YouTube</button>
+        </div>
+
+        <label for="videoUrl" id="urlLabel">Instagram Reel URL</label>
         <div class="input-row">
           <input id="videoUrl" name="videoUrl" type="url" placeholder="https://www.instagram.com/reel/..." autocomplete="off" required />
           <button type="submit" id="downloadBtn" class="primary-btn">Download MP4</button>
@@ -39,6 +44,6 @@
     </section>
   </main>
   <script src="js/config.js?v=20260923"></script>
-  <script src="js/app.js?v=20260924-2"></script>
+  <script src="js/app.js?v=20260924-3"></script>
 </body>
 </html>

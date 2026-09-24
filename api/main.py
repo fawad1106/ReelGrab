@@ -174,13 +174,19 @@ def download(body: DownloadRequest):
             ]
             completed = subprocess.run(command, capture_output=True, text=True, timeout=120)
 
-            # YouTube is increasingly requiring Proof-of-Origin tokens for some
-            # clients/formats. Retry public videos with a client that does not
-            # currently require a PO token and fall back to progressive MP4.
-            if completed.returncode != 0 and is_supported_youtube_url(url):
+            # Retry with a simpler progressive MP4 selector when the preferred
+            # video+audio merge fails. YouTube additionally uses web_embedded,
+            # which is currently a useful public-client fallback.
+            if completed.returncode != 0:
                 fallback_command = [
                     "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
-                    "--restrict-filenames", "--extractor-args", "youtube:player_client=web_embedded",
+                    "--restrict-filenames",
+                ]
+                if is_supported_youtube_url(url):
+                    fallback_command += [
+                        "--extractor-args", "youtube:player_client=web_embedded"
+                    ]
+                fallback_command += [
                     "-f", "best[ext=mp4]/best", "--merge-output-format", "mp4",
                     "-o", output_template, url,
                 ]

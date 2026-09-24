@@ -98,7 +98,7 @@ class ReelGrabTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(calls), 2)
         self.assertIn("--extractor-args", calls[1])
-        self.assertIn("youtube:player_client=android_vr", calls[1])
+        self.assertIn("youtube:player_client=web_embedded", calls[1])
         self.assertEqual(response.json()["file_url"], "https://example.com/fallback.mp4")
 
     def test_youtube_download_is_accepted(self):

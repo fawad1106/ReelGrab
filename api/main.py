@@ -86,6 +86,16 @@ def is_supported_youtube_url(value: str) -> bool:
     return bool(re.match(r"^/(watch|shorts|live|embed)/[^/?#]+", parsed.path))
 
 
+def is_youtube_bot_block_error(error: str) -> bool:
+    lowered = error.lower()
+    return (
+        "sign in to confirm" in lowered
+        or "not a bot" in lowered
+        or ("http error 403" in lowered and "youtube" in lowered)
+        or "unable to download api page" in lowered
+    )
+
+
 def source_name(value: str) -> str:
     if is_supported_youtube_url(value):
         return "YouTube"
@@ -168,7 +178,7 @@ def download(body: DownloadRequest):
         with tempfile.TemporaryDirectory() as tmp:
             output_template = str(Path(tmp) / "%(id)s.%(ext)s")
             command = [
-                "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
+                "yt-dlp", "--force-ipv4", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
                 "--restrict-filenames", "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b",
                 "--merge-output-format", "mp4", "-o", output_template, url,
             ]
@@ -179,7 +189,7 @@ def download(body: DownloadRequest):
             # which is currently a useful public-client fallback.
             if completed.returncode != 0:
                 fallback_command = [
-                    "yt-dlp", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
+                    "yt-dlp", "--force-ipv4", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
                     "--restrict-filenames",
                 ]
                 if is_supported_youtube_url(url):
@@ -196,6 +206,11 @@ def download(body: DownloadRequest):
 
             if completed.returncode != 0:
                 error_detail = completed.stderr.strip() or completed.stdout.strip()
+                if is_supported_youtube_url(url) and is_youtube_bot_block_error(error_detail):
+                    raise RuntimeError(
+                        "YouTube is currently blocking downloads from this server. "
+                        "Please try again later or use a video you have permission to download."
+                    )
                 raise RuntimeError(
                     error_detail[-1200:] or
                     f"yt-dlp could not retrieve this {source_name(url)} URL."

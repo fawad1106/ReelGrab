@@ -108,21 +108,33 @@
   }
 
   async function api(path, options = {}) {
-    let response;
-    try {
-      response = await fetch(API_BASE + path, {
-        ...options,
-        headers: { ...(options.headers || {}) }
-      });
-    } catch (error) {
-      console.error("ReelGrab API network error:", error);
-      throw new Error("Could not connect to ReelGrab. Please refresh and try again.");
+    const requestOptions = {
+      ...options,
+      headers: { ...(options.headers || {}) }
+    };
+
+    let lastNetworkError = null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(API_BASE + path, requestOptions);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(result.detail || result.error || "Request failed (HTTP " + response.status + ").");
+        }
+        return result;
+      } catch (error) {
+        if (error instanceof Error && /Request failed|^Only supported|^Could not create|^Processing|^yt-dlp|^Storage|^Supabase/i.test(error.message)) {
+          throw error;
+        }
+        lastNetworkError = error;
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 2500));
+        }
+      }
     }
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.detail || result.error || "Request failed (HTTP " + response.status + ").");
-    }
-    return result;
+
+    console.error("ReelGrab API network error:", lastNetworkError);
+    throw new Error("Could not connect to ReelGrab. The server may be waking up — please try again in a few seconds.");
   }
 
   async function downloadMp4(fileUrl) {

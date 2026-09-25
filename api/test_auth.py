@@ -6,7 +6,7 @@ os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
 
 from fastapi.testclient import TestClient
-from main import app, is_supported_instagram_url, is_supported_youtube_url
+from main import app, is_supported_instagram_url, is_supported_youtube_url, is_youtube_bot_block_error
 
 
 class ReelGrabTests(unittest.TestCase):
@@ -131,6 +131,15 @@ class ReelGrabTests(unittest.TestCase):
         self.assertIn("best[ext=mp4]/best", calls[1])
         self.assertNotIn("--extractor-args", calls[1])
         self.assertEqual(response.json()["file_url"], "https://example.com/instagram.mp4")
+
+    def test_youtube_bot_block_error_is_detected(self):
+        self.assertTrue(is_youtube_bot_block_error(
+            "Sign in to confirm you’re not a bot. HTTP Error 403: Forbidden"
+        ))
+        self.assertTrue(is_youtube_bot_block_error(
+            "Unable to download API page: HTTP Error 403: Forbidden"
+        ))
+        self.assertFalse(is_youtube_bot_block_error("format unavailable"))
 
     def test_youtube_download_is_accepted(self):
         client = TestClient(app)

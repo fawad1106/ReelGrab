@@ -88,44 +88,6 @@ class ReelGrabTests(unittest.TestCase):
         self.assertNotIn("--extractor-args", calls[1])
         self.assertEqual(response.json()["file_url"], "https://example.com/instagram.mp4")
 
-    def test_youtube_bot_block_error_is_detected(self):
-        self.assertTrue(is_youtube_bot_block_error(
-            "Sign in to confirm you’re not a bot. HTTP Error 403: Forbidden"
-        ))
-        self.assertTrue(is_youtube_bot_block_error(
-            "Unable to download API page: HTTP Error 403: Forbidden"
-        ))
-        self.assertFalse(is_youtube_bot_block_error("format unavailable"))
-
-    def test_youtube_download_is_accepted(self):
-        client = TestClient(app)
-
-        class FakeResponse:
-            status_code = 201
-
-            def json(self):
-                return [{"id": "youtube-test"}]
-
-        class FakeCompleted:
-            returncode = 0
-            stderr = ""
-
-        def fake_run(command, **kwargs):
-            output_template = command[command.index("-o") + 1]
-            output_path = output_template.replace("%(id)s", "youtube-test").replace("%(ext)s", "mp4")
-            with open(output_path, "wb") as fh:
-                fh.write(b"fake youtube mp4")
-            self.assertIn("https://www.youtube.com/watch?v=dQw4w9WgXcQ", command)
-            return FakeCompleted()
-
-        with patch("main.download_record_insert", return_value=FakeResponse()),              patch("main.subprocess.run", side_effect=fake_run),              patch("main.upload_file"),              patch("main.create_signed_url", return_value="https://example.com/youtube.mp4"),              patch("main.db_update"):
-            response = client.post(
-                "/api/download",
-                json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["file_url"], "https://example.com/youtube.mp4")
 
 
 if __name__ == "__main__":

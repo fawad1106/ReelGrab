@@ -11,36 +11,14 @@
   const progressPercent = $("#progressPercent");
   const progressLabel = $("#progressLabel");
   const progressTrack = progressArea?.querySelector(".progress-track");
-  const sourceTabs = [...document.querySelectorAll(".source-tab")];
   const configuredApiUrl = typeof window.DOWNLOAD_API_URL === "string" ? window.DOWNLOAD_API_URL.trim() : "";
   const API_BASE = (configuredApiUrl || "https://reelgrab-api-79yl.onrender.com/api/download").replace(/\/api\/download\/?$/, "");
-  let selectedSource = "instagram";
   let progressTimer = null;
   let progressValue = 0;
 
   function setMessage(text, type = "") {
     message.textContent = text;
     message.className = "message " + type;
-  }
-
-  function setSource(source) {
-    selectedSource = source;
-    sourceTabs.forEach((tab) => {
-      const active = tab.dataset.source === source;
-      tab.classList.toggle("active", active);
-      tab.setAttribute("aria-pressed", String(active));
-    });
-
-    if (source === "youtube") {
-      urlLabel.textContent = "YouTube Video URL";
-      urlInput.placeholder = "https://www.youtube.com/watch?v=...";
-    } else {
-      urlLabel.textContent = "Instagram Reel URL";
-      urlInput.placeholder = "https://www.instagram.com/reel/...";
-    }
-    urlInput.value = "";
-    setMessage("");
-    resetProgress();
   }
 
   function setProgress(value, label) {
@@ -53,7 +31,7 @@
 
   function startProgress() {
     progressArea.classList.remove("hidden");
-    const source = selectedSource === "youtube" ? "YouTube" : "Instagram";
+    const source = "Instagram";
     setProgress(5, "Connecting to " + source + "…");
     clearInterval(progressTimer);
     progressTimer = setInterval(() => {
@@ -92,14 +70,10 @@
     }
   }
 
-  function isSelectedSourceUrl(value) {
+  function isInstagramUrl(value) {
     try {
       const url = new URL(value);
       const host = url.hostname.toLowerCase();
-      if (selectedSource === "youtube") {
-        const youtubeHost = ["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"].includes(host);
-        return youtubeHost && (host.includes("youtu.be") ? url.pathname.length > 1 : /\/(watch|shorts|live|embed)\//.test(url.pathname));
-      }
       return ["instagram.com", "www.instagram.com", "m.instagram.com"].includes(host)
         && /^\/(reel|reels|p)\/[^/?#]+/.test(url.pathname);
     } catch {
@@ -159,11 +133,6 @@
     setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   }
 
-  sourceTabs.forEach((tab) => {
-    tab.addEventListener("click", () => setSource(tab.dataset.source));
-    tab.setAttribute("aria-pressed", String(tab.classList.contains("active")));
-  });
-
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     setMessage("");
@@ -175,9 +144,8 @@
       setMessage("Enter a valid URL.", "error");
       return;
     }
-    if (!isSelectedSourceUrl(videoUrl)) {
-      const expected = selectedSource === "youtube" ? "a YouTube video URL" : "an Instagram Reel or post URL";
-      setMessage("Please paste " + expected + ".", "error");
+    if (!isInstagramUrl(videoUrl)) {
+      setMessage("Please paste an Instagram Reel or post URL.", "error");
       return;
     }
 

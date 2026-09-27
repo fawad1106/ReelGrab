@@ -6,7 +6,7 @@ os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service")
 
 from fastapi.testclient import TestClient
-from main import app, is_supported_instagram_url, is_supported_youtube_url, is_youtube_bot_block_error
+from main import app, is_supported_instagram_url
 
 
 class ReelGrabTests(unittest.TestCase):
@@ -21,11 +21,11 @@ class ReelGrabTests(unittest.TestCase):
         self.assertTrue(is_supported_instagram_url("https://www.instagram.com/p/ABC123/"))
         self.assertFalse(is_supported_instagram_url("https://example.com/video/ABC123"))
 
-    def test_youtube_url_validation(self):
-        self.assertTrue(is_supported_youtube_url("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
-        self.assertTrue(is_supported_youtube_url("https://youtu.be/dQw4w9WgXcQ"))
-        self.assertTrue(is_supported_youtube_url("https://www.youtube.com/shorts/abc123"))
-        self.assertFalse(is_supported_youtube_url("https://example.com/watch?v=abc"))
+    def test_youtube_url_is_rejected(self):
+        client = TestClient(app)
+        response = client.post("/api/download", json={"url": "https://www.youtube.com/shorts/abc123"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Only supported Instagram", response.json()["detail"])
 
     def test_download_endpoint_does_not_require_login(self):
         client = TestClient(app)
@@ -56,50 +56,6 @@ class ReelGrabTests(unittest.TestCase):
         self.assertNotEqual(response.status_code, 401)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["file_url"], "https://example.com/signed.mp4")
-
-    def test_youtube_download_retries_with_compatible_client_when_primary_fails(self):
-        client = TestClient(app)
-
-        class FakeResponse:
-            status_code = 201
-
-            def json(self):
-                return [{"id": "youtube-fallback-test"}]
-
-        calls = []
-
-        class FakeCompleted:
-            returncode = 0
-            stderr = ""
-
-        def fake_run(command, **kwargs):
-            calls.append(command)
-            output_template = command[command.index("-o") + 1]
-            output_path = output_template.replace("%(id)s", "youtube-fallback-test").replace("%(ext)s", "mp4")
-            if len(calls) == 1:
-                return type("Failed", (), {
-                    "returncode": 1,
-                    "stderr": "HTTP Error 403: Forbidden"
-                })()
-            with open(output_path, "wb") as fh:
-                fh.write(b"fallback mp4")
-            return FakeCompleted()
-
-        with patch("main.download_record_insert", return_value=FakeResponse()), \
-             patch("main.subprocess.run", side_effect=fake_run), \
-             patch("main.upload_file"), \
-             patch("main.create_signed_url", return_value="https://example.com/fallback.mp4"), \
-             patch("main.db_update"):
-            response = client.post(
-                "/api/download",
-                json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
-            )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(calls), 2)
-        self.assertIn("--extractor-args", calls[1])
-        self.assertIn("youtube:player_client=web_embedded", calls[1])
-        self.assertEqual(response.json()["file_url"], "https://example.com/fallback.mp4")
 
     def test_instagram_download_retries_with_simple_mp4_when_primary_fails(self):
         client = TestClient(app)

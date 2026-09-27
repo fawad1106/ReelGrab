@@ -76,26 +76,6 @@ def is_supported_instagram_url(value: str) -> bool:
     return bool(re.match(r"^/(reel|reels|p)/[^/?#]+", parsed.path))
 
 
-def is_supported_youtube_url(value: str) -> bool:
-    parsed = urlparse(value)
-    host = (parsed.hostname or "").lower()
-    if host in {"youtu.be", "www.youtu.be"}:
-        return bool(parsed.path.strip("/"))
-    if host not in {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}:
-        return False
-    return bool(re.match(r"^/(watch|shorts|live|embed)/[^/?#]+", parsed.path))
-
-
-def is_youtube_bot_block_error(error: str) -> bool:
-    lowered = error.lower()
-    return (
-        "sign in to confirm" in lowered
-        or "not a bot" in lowered
-        or ("http error 403" in lowered and "youtube" in lowered)
-        or "unable to download api page" in lowered
-    )
-
-
 def source_name(value: str) -> str:
     if is_supported_youtube_url(value):
         return "YouTube"
@@ -153,10 +133,10 @@ def health():
 def download(body: DownloadRequest):
     url = str(body.url)
 
-    if not (is_supported_instagram_url(url) or is_supported_youtube_url(url)):
+    if not is_supported_instagram_url(url):
         raise HTTPException(
             status_code=400,
-            detail="Only supported Instagram Reel/Post and YouTube video URLs are accepted.",
+            detail="Only supported Instagram Reel/Post URLs are accepted.",
         )
 
     download_id = None
@@ -185,19 +165,11 @@ def download(body: DownloadRequest):
             completed = subprocess.run(command, capture_output=True, text=True, timeout=120)
 
             # Retry with a simpler progressive MP4 selector when the preferred
-            # video+audio merge fails. YouTube additionally uses web_embedded,
-            # which is currently a useful public-client fallback.
+            # video+audio merge fails.
             if completed.returncode != 0:
                 fallback_command = [
                     "yt-dlp", "--force-ipv4", "--no-playlist", "--max-filesize", str(MAX_FILE_SIZE),
-                    "--restrict-filenames",
-                ]
-                if is_supported_youtube_url(url):
-                    fallback_command += [
-                        "--extractor-args", "youtube:player_client=web_embedded"
-                    ]
-                fallback_command += [
-                    "-f", "best[ext=mp4]/best", "--merge-output-format", "mp4",
+                    "--restrict-filenames", "-f", "best[ext=mp4]/best", "--merge-output-format", "mp4",
                     "-o", output_template, url,
                 ]
                 completed = subprocess.run(
@@ -206,11 +178,6 @@ def download(body: DownloadRequest):
 
             if completed.returncode != 0:
                 error_detail = completed.stderr.strip() or completed.stdout.strip()
-                if is_supported_youtube_url(url) and is_youtube_bot_block_error(error_detail):
-                    raise RuntimeError(
-                        "YouTube is currently blocking downloads from this server. "
-                        "Please try again later or use a video you have permission to download."
-                    )
                 raise RuntimeError(
                     error_detail[-1200:] or
                     f"yt-dlp could not retrieve this {source_name(url)} URL."

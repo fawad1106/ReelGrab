@@ -77,8 +77,6 @@ def is_supported_instagram_url(value: str) -> bool:
 
 
 def source_name(value: str) -> str:
-    if is_supported_youtube_url(value):
-        return "YouTube"
     if is_supported_instagram_url(value):
         return "Instagram"
     return "supported source"
